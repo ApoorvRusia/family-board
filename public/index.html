@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e7c6b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Family Board">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<title>Family Board</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f2e9; --card:#fff; --ink:#26241d; --muted:#8b8672; --line:#e8e2d0;
+  --teal:#0e7c6b; --teal-dark:#0a5a4f;
+  --green:#2e7d4f; --amber:#b26a00; --purple:#7c5cbf; --pink:#d94f70; --red:#c0392b;
+  --amber-soft:#fff3df;
+}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:110px}
+header.top{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#083f39,#0e7c6b 70%,#149a86);color:#fff;padding:18px 16px 16px;box-shadow:0 2px 12px rgba(8,63,57,.35);border-radius:0 0 22px 22px}
+header.top .row{display:flex;justify-content:space-between;align-items:center;max-width:640px;margin:0 auto}
+header.top h1{margin:0;font-size:23px;letter-spacing:.2px}
+header.top .date{font-size:12.5px;opacity:.85;margin-top:3px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;opacity:.9}
+.live .dot{width:8px;height:8px;border-radius:50%;background:#7dffb0;box-shadow:0 0 6px #7dffb0;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.5}}
+main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
+.secthead{display:flex;justify-content:space-between;align-items:center;margin:4px 2px 12px}
+.secthead h2{margin:0;font-size:19px}
+.secthead .count{font-size:12px;font-weight:700;color:var(--teal-dark);background:#e2f2ee;border-radius:20px;padding:5px 12px}
+.loading,.conn{text-align:center;color:var(--muted);margin-top:70px}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border-radius:18px;padding:15px;margin-bottom:11px;box-shadow:0 2px 6px rgba(60,55,40,.07);animation:rise .25s ease}
+.card .top{display:flex;gap:13px;align-items:flex-start}
+.card .body{flex:1;min-width:0}
+.card .title{font-weight:700;font-size:16.5px;line-height:1.35;margin-bottom:6px}
+.card .meta{font-size:13.5px;color:var(--muted);line-height:1.6}
+.card .meta a{color:var(--teal);text-decoration:none;font-weight:700}
+.rowline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.pill{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:4px 11px;background:#eef0ea;color:#5c6650}
+.pill.green{background:#e3f2e8;color:var(--green)}
+.pill.amber{background:var(--amber-soft);color:var(--amber)}
+.pill.purple{background:#ece7f9;color:var(--purple)}
+.pill.pink{background:#fbe7ec;color:var(--pink)}
+.pill.red{background:#fbe3e0;color:var(--red)}
+.pill.teal{background:#e2f2ee;color:var(--teal-dark)}
+.check{appearance:none;-webkit-appearance:none;flex:none;width:32px;height:32px;border:2px solid #d3ccb4;border-radius:50%;margin:1px 0 0;cursor:pointer;position:relative;background:#fff}
+.check:checked{background:var(--green);border-color:var(--green)}
+.check:checked::after{content:"";position:absolute;left:10px;top:5px;width:7px;height:13px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.card.done{background:#faf8f1}
+.card.done .title{text-decoration:line-through;color:#b3ad99}
+.dateblock{flex:none;width:56px;height:62px;border-radius:14px;background:linear-gradient(160deg,var(--purple),#5d3fa0);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(124,92,191,.35)}
+.dateblock .m{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.9}
+.dateblock .d{font-size:24px;font-weight:800;line-height:1.1}
+.dateblock.plain{background:linear-gradient(160deg,#9aa39a,#6f7a6f);box-shadow:none}
+.delrow{margin-top:10px}
+.del{background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;font-size:12.5px;padding:7px 13px;cursor:pointer;font-family:inherit}
+.empty{text-align:center;color:var(--muted);padding:50px 22px;font-size:15px;background:#fff;border-radius:18px;border:1.5px dashed var(--line)}
+.empty .big{font-size:40px;display:block;margin-bottom:10px}
+.err{text-align:center;color:var(--red);padding:44px 20px}
+#fab{position:fixed;right:18px;bottom:calc(92px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;background:linear-gradient(145deg,#12a48f,#0b6b5e);color:#fff;border:0;font-size:30px;line-height:1;box-shadow:0 6px 18px rgba(14,124,107,.45);cursor:pointer;z-index:8}
+#fab:active{transform:scale(.94)}
+#askFab{position:fixed;right:18px;bottom:calc(168px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;background:linear-gradient(145deg,#12a48f,#0b6b5e);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 6px 18px rgba(14,124,107,.45);z-index:8}
+#askFab:active{transform:scale(.94)}
+#aiFab{position:fixed;right:18px;bottom:calc(244px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;background:linear-gradient(145deg,#8b5cf6,#5b21b6);color:#fff;border:0;font-size:26px;box-shadow:0 6px 18px rgba(91,33,182,.45);cursor:pointer;z-index:8}
+#aiFab:active{transform:scale(.94)}
+.pchip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.5);color:#fff;
+  border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+#settingsBtn{position:relative}
+#settingsBtn .bdg{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.setbody h4{margin:18px 0 8px;font-size:15px}
+.setbody h4:first-child{margin-top:2px}
+.sethint{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 12px}
+.inviterow{display:flex;gap:8px;margin-bottom:10px}
+.inviterow input{flex:1;font-size:13px;padding:11px}
+#copyLink{flex:none;background:#e2f2ee;border:1px solid #bfe0d8;color:var(--teal-dark)}
+#qrwrap{text-align:center;margin:14px 0 4px}
+#qr{display:inline-block;padding:10px;background:#fff;border:1.5px solid var(--line);border-radius:14px}
+#qr img,#qr canvas{display:block}
+.reqrow{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#f8f6ee;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.reqname{font-weight:800;font-size:15px}
+.reqsub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.addbtn.sm{width:auto;margin-top:0;padding:10px 16px;font-size:14px}
+.addbtn.ok{background:linear-gradient(145deg,#2e9e63,#1f7046);box-shadow:none}
+.addbtn.no{background:#f0ede1;color:var(--muted);box-shadow:none}
+#gate{position:fixed;inset:0;background:var(--bg);z-index:30;display:flex;align-items:center;justify-content:center;padding:24px}
+#gate.hidden{display:none}
+.gatecard{background:#fff;border-radius:24px;padding:38px 28px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 30px rgba(60,55,40,.12)}
+.gateemoji{font-size:54px}
+.gatecard h2{margin:14px 0 6px;font-size:22px}
+.gatecard p{color:var(--muted);font-size:14px;margin:0 0 22px;line-height:1.5}
+#signinBtn{background:#fff;border:1px solid var(--line);border-radius:999px;padding:14px 24px;font-size:15px;
+  font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink);box-shadow:0 2px 8px rgba(60,55,40,.1)}
+#signinBtn:active{transform:scale(.97)}
+.gateerr{color:var(--red);font-size:13px;min-height:18px;margin:14px 0 0}
+.overlay{position:fixed;inset:0;background:rgba(30,28,20,.45);z-index:9;display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.sheet{background:#fff;width:100%;max-width:640px;border-radius:24px 24px 0 0;padding:10px 18px calc(22px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;animation:sheetup .28s ease}
+@keyframes sheetup{from{transform:translateY(60px);opacity:.5}to{transform:none;opacity:1}}
+.grab{width:44px;height:5px;border-radius:3px;background:#ddd6c0;margin:4px auto 12px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.sheet-head h3{margin:0;font-size:17px}
+#sheetClose,.sheetclose{background:#f0ede1;border:0;width:34px;height:34px;border-radius:50%;font-size:15px;color:var(--muted);cursor:pointer}
+form.add .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+form.add .full{grid-column:1/-1}
+input,select{font-size:16px;padding:13px;border:1.5px solid #e0dac4;border-radius:13px;width:100%;background:#fff;font-family:inherit;color:var(--ink)}
+input:focus,select:focus{outline:none;border-color:var(--teal)}
+label.f{display:block}
+label.f>span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700}
+.privrow{grid-column:1/-1;display:flex;align-items:center;gap:10px;background:#fdf6e3;border:1.5px dashed #d9b84a;border-radius:13px;padding:11px 13px;cursor:pointer;font-size:14.5px;font-weight:700;color:#7a5c14}
+.privrow input{width:22px;height:22px;accent-color:#b98a1d}
+.assistbody p{font-size:14.5px;line-height:1.55;color:var(--ink);margin:0 0 12px}
+.assistbody a{color:var(--teal-dark);font-weight:700}
+.assistbody input{margin-bottom:4px}
+.aibody .aihint{font-size:13.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+.aiinputrow{display:flex;gap:8px;align-items:stretch;margin-bottom:12px}
+.aiinputrow textarea{flex:1;font-size:16px;padding:13px;border:1.5px solid #e0dac4;border-radius:13px;font-family:inherit;color:var(--ink);resize:vertical}
+.aiinputrow textarea:focus{outline:none;border-color:#8b5cf6}
+#aiMic{width:56px;border:0;border-radius:13px;background:#ede9fe;font-size:24px;cursor:pointer;flex-shrink:0}
+#aiMic.on{background:#8b5cf6}
+#aipreviewwrap{margin-top:4px}
+.aiprev{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f6f3ff;border:1px solid #ddd0fa;border-radius:12px;padding:10px 12px;margin:8px 0}
+.aiprevt{font-weight:700;font-size:14.5px}
+.aiprevs{font-size:12.5px;color:var(--muted);margin-top:2px}
+.aiprevx{border:0;background:#f0ede1;width:30px;height:30px;border-radius:50%;font-size:13px;color:var(--muted);cursor:pointer;flex-shrink:0}
+#aiParse{margin-top:0}
+#aiAddAll{margin-top:12px}
+.addbtn{width:100%;margin-top:14px;background:linear-gradient(145deg,#12a48f,#0b6b5e);color:#fff;border:0;border-radius:15px;font-size:16.5px;font-weight:800;padding:16px;cursor:pointer;box-shadow:0 4px 12px rgba(14,124,107,.35)}
+.addbtn:disabled{opacity:.6}
+nav#tabs{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;padding:10px 6px calc(12px + env(safe-area-inset-bottom));z-index:5}
+nav#tabs button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:11.5px;padding:8px 4px;cursor:pointer;font-family:inherit;border-radius:14px;font-weight:600}
+nav#tabs button .ico{font-size:24px;line-height:1}
+nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row">
+    <div>
+      <h1>🏠 Family Board</h1>
+      <div class="date" id="today"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="pchip" id="settingsBtn" style="display:none" aria-label="Settings">⚙️<span class="bdg" id="setBdg" style="display:none"></span></button>
+        <button class="pchip" id="authChip" style="display:none">👤</button>
+      </div>
+      <span class="live"><span class="dot"></span><span id="liveLabel">connecting…</span></span>
+    </div>
+  </div>
+</header>
+<main id="content"><p class="conn">Connecting…</p></main>
+<button id="fab" aria-label="Add">＋</button>
+<a id="askFab" href="#" aria-label="Ask your assistant">💬</a>
+<button id="aiFab" aria-label="AI add">✨</button>
+<div id="overlay" class="overlay"><div id="sheet" class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3 id="sheetTitle"></h3><button id="sheetClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <form class="add" id="addForm"><div class="grid" id="formGrid"></div><button type="submit" class="addbtn" id="addBtn">Add</button></form>
+</div></div>
+<div id="overlayA" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3>Connect your assistant</h3><button id="sheetAClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div class="assistbody">
+    <p>Everyone here has their own assistant — this button opens <i>yours</i>. One-time setup:</p>
+    <p><b>1.</b> In your Muse app, link WhatsApp if you haven't yet:<br><a href="https://agent.meta.ai/connect/channel?service=whatsapp" target="_blank" rel="noopener">Connect WhatsApp</a></p>
+    <p><b>2.</b> Ask your Muse for <i>"my WhatsApp chat link"</i> and paste it below:</p>
+    <input id="assistUrl" type="url" inputmode="url" placeholder="https://…">
+    <button class="addbtn" id="assistSave" type="button">Save</button>
+    <p class="gateerr" id="assistErr"></p>
+  </div>
+</div></div>
+<div id="overlayC" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3 id="aiTitle">✨ AI add</h3><button id="sheetCClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div class="aibody">
+    <p class="aihint" id="aiHint"></p>
+    <div class="aiinputrow">
+      <textarea id="aiText" rows="3" placeholder="Type or dictate…"></textarea>
+      <button id="aiMic" type="button" aria-label="Dictate">🎤</button>
+    </div>
+    <button class="addbtn" id="aiParse" type="button">Parse</button>
+    <div id="aipreviewwrap"><div id="aiPreview"></div></div>
+    <button class="addbtn" id="aiAddAll" type="button" style="display:none">Add</button>
+    <p class="gateerr" id="aiErr"></p>
+  </div>
+</div></div>
+<div id="overlayS" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3>⚙️ Settings</h3><button id="sheetSClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div class="setbody">
+    <h4>📨 Invite to the board</h4>
+    <p class="sethint">Share this link — new members sign in with Google, then tap <b>Request access</b>. You approve them below.</p>
+    <div class="inviterow">
+      <input id="inviteLink" readonly value="">
+      <button id="copyLink" class="pchip" type="button">Copy</button>
+    </div>
+    <button class="addbtn" id="shareBoard" type="button">Share…</button>
+    <div id="qrwrap"><div id="qr"></div><p class="sethint" style="margin-top:8px">Scan to open the board</p></div>
+    <div id="ownerZone" style="display:none">
+      <h4>👥 Membership requests</h4>
+      <div id="reqList"><p class="sethint">Loading…</p></div>
+    </div>
+  </div>
+</div></div>
+<div id="gate"><div class="gatecard" id="gateCard"></div></div>
+<nav id="tabs">
+  <button data-tab="groceries" class="active"><span class="ico">🛒</span><span>Groceries</span></button>
+  <button data-tab="todos"><span class="ico">✅</span><span>To-Dos</span></button>
+  <button data-tab="plans"><span class="ico">📅</span><span>Plans</span></button>
+  <button data-tab="gifts"><span class="ico">🎁</span><span>Gifts</span></button>
+</nav>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="importmap">
+{"imports":{
+  "firebase/app":"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
+  "firebase/firestore":"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js",
+  "firebase/auth":"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"
+}}
+</script>
+<script type="module">
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAdF6OOfDklYdw-bN7DF_RciW-1hm1Maq4",
+  authDomain: "family-board-25583.firebaseapp.com",
+  projectId: "family-board-25583",
+  storageBucket: "family-board-25583.firebasestorage.app",
+  messagingSenderId: "847195748663",
+  appId: "1:847195748663:web:cd014b2d061b6165df42b2"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+/* Your Gemini API key for in-app AI add (get one at https://aistudio.google.com/apikey).
+   Leave empty to disable AI add. Restrict the key to your site in Google Cloud Console. */
+const GEMINI_API_KEY = "";
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
+
+/* ---------- model ---------- */
+const BOARD_URL = 'https://family-board-25583.web.app/';
+let MEMBER_NAMES = ['Apoorv', 'Divya'];  /* refreshed from approved members */
+const TABS = {
+  groceries: { coll:'groceries', title:'Grocery List',   countLbl:'items',    emoji:'🛒', toggle:'bought' },
+  todos:     { coll:'todos',     title:'Home To-Dos',    countLbl:'open',     emoji:'✅', toggle:'done'   },
+  plans:     { coll:'plans',     title:'Family Plans',   countLbl:'upcoming', emoji:'📅', toggle:null     },
+  gifts:     { coll:'gifts',     title:'Gift Ideas',     countLbl:'ideas',    emoji:'🎁', toggle:null     }
+};
+const FORMS = {
+  groceries: [['item','Item','text',1],['quantity','Quantity','text',0],['pickUpBy','Pick up by','select',0],['notes','Notes','text',0]],
+  todos:     [['task','Task','text',1],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]],
+  plans:     [['event','Event','text',1],['date','Date','date',0],['whoIn','Who is in','text',0],['notes','Notes','text',0]],
+  gifts:     [['idea','Idea','text',1],['forWhom','For','select',0],['occasion','Occasion','text',0],['budget','Budget','text',0],['link','Link','text',0]]
+};
+let ACTIVE = 'groceries';
+const CACHE = { groceries:[], todos:[], plans:[], gifts:[], privateGifts:[] };
+
+const contentEl = document.getElementById('content');
+const overlayEl = document.getElementById('overlay');
+document.getElementById('today').textContent =
+  new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ts = d => (d.createdAt && d.createdAt.toMillis) ? d.createdAt.toMillis() : 0;
+/* ---------- rendering ---------- */
+const pill = (txt, cls) => txt ? `<span class="pill ${cls}">${esc(txt)}</span>` : '';
+
+function dueBadge(iso){
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return pill(iso, '');
+  const t = new Date(); t.setHours(0,0,0,0);
+  const diff = Math.round((d - t) / 86400000);
+  if (diff < 0) return '<span class="pill red">Overdue</span>';
+  if (diff === 0) return '<span class="pill amber">Due today</span>';
+  if (diff === 1) return '<span class="pill amber">Due tomorrow</span>';
+  return `<span class="pill">${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>`;
+}
+function dateBlock(iso){
+  const mk = (m, d, plain) => `<div class="dateblock${plain?' plain':''}"><div class="m">${m}</div><div class="d">${d}</div></div>`;
+  if (!iso) return mk('—', '?', true);
+  const d = new Date(iso.includes('T') ? iso : iso + 'T00:00:00');
+  if (isNaN(d)) return mk('—', '?', true);
+  return mk(d.toLocaleDateString(undefined,{month:'short'}), d.getDate(), false);
+}
+
+function card(tab, id, v, coll){
+  coll = coll || TABS[tab].coll;
+  const tgl = TABS[tab].toggle;
+  const done = tgl && !!v[tgl];
+  let lead = '', title = '', meta = '', row = '';
+  if (tab === 'groceries'){
+    title = esc(v.item);
+    row = pill(v.quantity ? '× '+v.quantity : '', 'teal') + pill(v.pickUpBy ? 'Pick up: '+v.pickUpBy : '', '');
+    meta = (v.addedBy ? `<div>Added by ${esc(v.addedBy)}</div>` : '') + (v.notes ? `<div>${esc(v.notes)}</div>` : '');
+    lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="bought"${done?' checked':''} aria-label="bought">`;
+  } else if (tab === 'todos'){
+    title = esc(v.task);
+    row = dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber');
+    meta = v.notes ? `<div>${esc(v.notes)}</div>` : '';
+    lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} aria-label="done">`;
+  } else if (tab === 'plans'){
+    title = esc(v.event);
+    row = pill(v.whoIn ? '👪 '+v.whoIn : '', 'purple');
+    meta = v.notes ? `<div>${esc(v.notes)}</div>` : '';
+    lead = dateBlock(v.date);
+  } else if (tab === 'gifts'){
+    title = esc(v.idea);
+    row = (coll === 'privateGifts' ? pill('🔒 Only me', 'amber') : '') + pill(v.forWhom ? 'For '+v.forWhom : '', 'pink') + pill(v.budget || '', 'amber') + pill(v.occasion || '', '');
+    meta = (v.link ? `<div><a href="${esc(v.link)}">🔗 View link</a></div>` : '') + (v.addedBy ? `<div>Added by ${esc(v.addedBy)}</div>` : '');
+  }
+  return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
+    `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
+    `${row?`<div class="rowline">${row}</div>`:''}` +
+    `<div class="delrow"><button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
+    `</div></div></div>`;
+}
+
+function render(){
+  const tab = TABS[ACTIVE];
+  let rows = [...CACHE[ACTIVE]];
+  if (ACTIVE === 'gifts') rows = rows.concat(CACHE.privateGifts);
+  rows.sort((a,b) => ts(b.d) - ts(a.d));
+  const open = rows.filter(r => !(tab.toggle && r.d[tab.toggle])).length;
+  let html = `<div class="secthead"><h2>${tab.title}</h2><span class="count">${open} ${tab.countLbl}</span></div>`;
+  if (!rows.length) html += `<div class="empty"><span class="big">${tab.emoji}</span>Nothing here yet.<br>Tap ＋ to add the first one.</div>`;
+  rows.forEach(r => { html += card(ACTIVE, r.id, r.d, r.coll); });
+  contentEl.innerHTML = html;
+  contentEl.querySelectorAll('.check').forEach(cb => cb.addEventListener('change', () => {
+    updateDoc(doc(db, tab.coll, cb.dataset.id), { [cb.dataset.tgl]: cb.checked }).catch(e => { render(); alert('Could not save: ' + e.message); });
+  }));
+  contentEl.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    if (!confirm('Delete this item?')) return;
+    deleteDoc(doc(db, b.dataset.coll || tab.coll, b.dataset.del)).catch(e => alert('Could not delete: ' + e.message));
+  }));
+}
+
+/* ---------- realtime (starts after sign-in) ---------- */
+let unsubs = [];
+function startRealtime(){
+  unsubs.forEach(u => u());
+  unsubs = [];
+  let connected = 0;
+  Object.keys(TABS).forEach(tab => {
+    unsubs.push(onSnapshot(collection(db, TABS[tab].coll),
+      snap => {
+        CACHE[tab] = snap.docs.map(d => ({ id: d.id, d: d.data() }));
+        connected++;
+        if (connected >= 1) document.getElementById('liveLabel').textContent = 'live';
+        if (tab === ACTIVE) render();
+      },
+      err => { contentEl.innerHTML = `<p class="err">Could not connect.<br>${esc(err.message)}</p>`; }
+    ));
+  });
+  if (USER) {
+    unsubs.push(onSnapshot(query(collection(db, 'privateGifts'), where('ownerUid', '==', USER.uid)),
+      snap => {
+        CACHE.privateGifts = snap.docs.map(d => ({ id: d.id, d: d.data(), coll: 'privateGifts' }));
+        if (ACTIVE === 'gifts') render();
+      },
+      err => { contentEl.innerHTML = `<p class="err">Could not connect.<br>${esc(err.message)}</p>`; }
+    ));
+  }
+}
+
+/* ---------- add form (bottom sheet) ---------- */
+function fieldHtml(key, label, type, req){
+  const reqAttr = req ? ' required' : '';
+  let inner;
+  if (type === 'select'){
+    inner = `<select data-key="${key}"><option value="">—</option>${MEMBER_NAMES.map(m=>`<option>${esc(m)}</option>`).join('')}</select>`;
+  } else if (type === 'date'){
+    inner = `<input type="date" data-key="${key}">`;
+  } else {
+    inner = `<input type="text" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
+  }
+  return `<label class="f"><span>${esc(label)}${req?' *':''}</span>${inner}</label>`;
+}
+function openSheet(){
+  document.getElementById('sheetTitle').textContent = 'Add to ' + TABS[ACTIVE].title;
+  document.getElementById('formGrid').innerHTML = FORMS[ACTIVE].map(s => {
+    const full = (s[2]==='text' && s[0]!=='quantity');
+    return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
+  }).join('');
+  if (ACTIVE === 'gifts'){
+    document.getElementById('formGrid').innerHTML += `<label class="privrow"><input type="checkbox" id="privToggle"> 🔒 Only me — hidden from everyone else</label>`;
+  }
+  overlayEl.classList.add('open');
+}
+const closeSheet = () => overlayEl.classList.remove('open');
+document.getElementById('fab').addEventListener('click', openSheet);
+document.getElementById('sheetClose').addEventListener('click', closeSheet);
+overlayEl.addEventListener('click', e => { if (e.target === overlayEl) closeSheet(); });
+document.getElementById('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const vals = { createdAt: serverTimestamp() };
+  let ok = true;
+  e.target.querySelectorAll('[data-key]').forEach(el => {
+    if (el.required && !el.value.trim()) ok = false;
+    vals[el.dataset.key] = el.value.trim();
+  });
+  if (!ok) return;
+  const who = USER ? (USER.displayName || USER.email) : '';
+  let targetColl = TABS[ACTIVE].coll;
+  if (ACTIVE === 'groceries'){ vals.addedBy = who; vals.bought = false; }
+  if (ACTIVE === 'todos'){ vals.done = false; }
+  if (ACTIVE === 'gifts'){
+    vals.addedBy = who;
+    const priv = document.getElementById('privToggle');
+    if (priv && priv.checked && USER){
+      vals.ownerUid = USER.uid;
+      vals.ownerEmail = USER.email || '';
+      vals.ownerName = who;
+      targetColl = 'privateGifts';
+    }
+  }
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  addDoc(collection(db, targetColl), vals)
+    .then(() => { btn.disabled = false; btn.textContent = 'Add'; closeSheet(); })
+    .catch(err => { btn.disabled = false; btn.textContent = 'Add'; alert('Could not add: ' + err.message); });
+});
+
+/* ---------- Google sign-in + board membership ---------- */
+const auth = getAuth(fbApp);
+const gateEl = document.getElementById('gate');
+const gateCard = document.getElementById('gateCard');
+const authChip = document.getElementById('authChip');
+const settingsBtn = document.getElementById('settingsBtn');
+let USER = null;
+let MEMBER = null;           /* own member doc: {status, role, name} */
+let unsubSelf = null, unsubReqs = null;
+
+function showGate(mode, extra){
+  gateEl.classList.remove('hidden');
+  if (mode === 'signin'){
+    gateCard.innerHTML = `<div class="gateemoji">🏠</div><h2>Family Board</h2>
+      <p>Sign in with Google to see and update the shared family board.</p>
+      <button id="signinBtn" type="button">Sign in with Google</button>
+      <p class="gateerr" id="gateErr"></p>`;
+    document.getElementById('signinBtn').addEventListener('click', doSignIn);
+  } else if (mode === 'request'){
+    const nm = esc((USER.displayName || USER.email || 'there').split(' ')[0]);
+    gateCard.innerHTML = `<div class="gateemoji">🔐</div><h2>Private board</h2>
+      <p>Hi ${nm} — this board is members-only.<br>Request access and the owner will approve you.</p>
+      ${extra === 'declined' ? '<p class="gateerr">Your last request wasn\u2019t approved — you can try again.</p>' : ''}
+      <button id="reqBtn" type="button" class="addbtn" style="margin-top:4px">Request access</button>
+      <p class="gateerr" id="gateErr"></p>`;
+    document.getElementById('reqBtn').addEventListener('click', requestAccess);
+  } else if (mode === 'pending'){
+    gateCard.innerHTML = `<div class="gateemoji">⏳</div><h2>Request sent</h2>
+      <p>Waiting for the board owner to approve you.<br>This screen will let you in automatically once approved.</p>`;
+  }
+}
+
+async function doSignIn(){
+  const errEl = document.getElementById('gateErr');
+  if (errEl) errEl.textContent = '';
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (err) {
+    if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/operation-not-supported-in-this-environment')) {
+      if (errEl) errEl.textContent = 'Popup didn\u2019t work here \u2014 trying redirect sign-in\u2026';
+      signInWithRedirect(auth, new GoogleAuthProvider());
+    } else if (errEl) {
+      errEl.textContent = 'Sign-in failed: ' + (err.code || err.message);
+    }
+  }
+}
+
+async function requestAccess(){
+  const errEl = document.getElementById('gateErr');
+  const btn = document.getElementById('reqBtn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await setDoc(doc(db, 'members', USER.uid), {
+      name: USER.displayName || USER.email || 'Unknown',
+      email: USER.email || '',
+      status: 'pending', role: 'member',
+      requestedAt: serverTimestamp()
+    });
+    watchSelf();
+  } catch(e){
+    if (errEl) errEl.textContent = 'Could not send request: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Request access';
+  }
+}
+
+function clearWatchers(){
+  if (unsubSelf){ unsubSelf(); unsubSelf = null; }
+  if (unsubReqs){ unsubReqs(); unsubReqs = null; }
+}
+
+/* While pending, watch our own member doc: approval lets us in automatically,
+   deletion (decline) sends us back to the request screen. */
+function watchSelf(){
+  clearWatchers();
+  unsubSelf = onSnapshot(doc(db, 'members', USER.uid),
+    snap => {
+      if (snap.exists() && snap.data().status === 'approved'){ enterApp(); }
+      else if (!snap.exists()){ MEMBER = null; showGate('request', 'declined'); }
+    }, () => {});
+}
+
+async function checkMembership(){
+  clearWatchers();
+  try {
+    const snap = await getDoc(doc(db, 'members', USER.uid));
+    if (!snap.exists()){ MEMBER = null; showGate('request'); return; }
+    MEMBER = snap.data();
+    if (MEMBER.status === 'approved') enterApp();
+    else { showGate('pending'); watchSelf(); }
+  } catch(e){
+    gateCard.innerHTML = `<div class="gateemoji">⚠️</div><h2>Couldn\u2019t load</h2><p>${esc(e.message)}</p>`;
+    gateEl.classList.remove('hidden');
+  }
+}
+
+async function loadMemberNames(){
+  try {
+    const s = await getDocs(query(collection(db, 'members'), where('status', '==', 'approved')));
+    const names = [...new Set(s.docs.map(d => String(d.data().name || '').split(' ')[0]).filter(Boolean))];
+    if (names.length) MEMBER_NAMES = names;
+  } catch(e){}
+}
+
+async function enterApp(){
+  clearWatchers();
+  gateEl.classList.add('hidden');
+  settingsBtn.style.display = '';
+  startRealtime();
+  loadAssistantLink();
+  await loadMemberNames();
+  if (MEMBER && MEMBER.role === 'owner') watchRequests();
+}
+
+authChip.addEventListener('click', () => {
+  if (USER && confirm('Sign out ' + (USER.displayName || USER.email) + '?')) signOut(auth).catch(()=>{});
+});
+getRedirectResult(auth).catch(err => {
+  const el = document.getElementById('gateErr');
+  if (el) el.textContent = 'Sign-in failed: ' + (err.code || err.message);
+});
+showGate('signin');
+onAuthStateChanged(auth, user => {
+  USER = user;
+  if (user) {
+    authChip.style.display = '';
+    authChip.textContent = '\uD83D\uDC64 ' + ((user.displayName || user.email || '?').split(' ')[0]);
+    checkMembership();
+  } else {
+    showGate('signin');
+    authChip.style.display = 'none';
+    settingsBtn.style.display = 'none';
+    CACHE.privateGifts = [];
+    ASSISTANT_URL = null; MEMBER = null; MEMBER_NAMES = ['Apoorv', 'Divya'];
+    clearWatchers();
+    unsubs.forEach(u => u()); unsubs = [];
+  }
+});
+
+/* ---------- settings: invite + membership approvals ---------- */
+const overlayS = document.getElementById('overlayS');
+const openSettings = () => {
+  document.getElementById('inviteLink').value = BOARD_URL;
+  document.getElementById('ownerZone').style.display = (MEMBER && MEMBER.role === 'owner') ? '' : 'none';
+  overlayS.classList.add('open');
+  makeQr();
+};
+const closeSettings = () => overlayS.classList.remove('open');
+settingsBtn.addEventListener('click', openSettings);
+document.getElementById('sheetSClose').addEventListener('click', closeSettings);
+overlayS.addEventListener('click', e => { if (e.target === overlayS) closeSettings(); });
+
+function makeQr(){
+  const el = document.getElementById('qr');
+  el.innerHTML = '';
+  document.getElementById('qrwrap').style.display = (typeof QRCode === 'undefined') ? 'none' : '';
+  if (typeof QRCode !== 'undefined'){
+    try { new QRCode(el, { text: BOARD_URL, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M }); }
+    catch(e){ document.getElementById('qrwrap').style.display = 'none'; }
+  }
+}
+
+async function copyInvite(){
+  const btn = document.getElementById('copyLink');
+  const text = BOARD_URL + ' — sign in with Google, then tap Request access';
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){
+    const inp = document.getElementById('inviteLink');
+    inp.select(); inp.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); } catch(_){}
+  }
+  const old = btn.textContent;
+  btn.textContent = 'Copied ✓';
+  setTimeout(() => { btn.textContent = old; }, 1500);
+}
+document.getElementById('copyLink').addEventListener('click', copyInvite);
+document.getElementById('shareBoard').addEventListener('click', async () => {
+  const data = { title: 'Family Board', text: 'Join our family board — sign in with Google, then tap Request access:', url: BOARD_URL };
+  if (navigator.share){ try { await navigator.share(data); } catch(e){} }
+  else copyInvite();
+});
+
+/* Owner: live list of pending join requests, with approve/decline. */
+function watchRequests(){
+  if (unsubReqs) return;
+  const bdg = document.getElementById('setBdg');
+  unsubReqs = onSnapshot(query(collection(db, 'members'), where('status', '==', 'pending')),
+    snap => {
+      const n = snap.size;
+      bdg.style.display = n ? '' : 'none';
+      bdg.textContent = n;
+      const el = document.getElementById('reqList');
+      if (!n){ el.innerHTML = '<p class="sethint">No pending requests.</p>'; return; }
+      el.innerHTML = '';
+      snap.docs.forEach(d => {
+        const m = d.data();
+        const row = document.createElement('div');
+        row.className = 'reqrow';
+        row.innerHTML = `<div><div class="reqname">${esc(m.name || '?')}</div><div class="reqsub">${esc(m.email || '')}</div></div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button class="addbtn sm ok" data-ap="${d.id}" type="button">Approve</button>
+            <button class="addbtn sm no" data-dc="${d.id}" type="button">Decline</button>
+          </div>`;
+        el.appendChild(row);
+      });
+      el.querySelectorAll('[data-ap]').forEach(b => b.addEventListener('click', () => approveMember(b.dataset.ap, b)));
+      el.querySelectorAll('[data-dc]').forEach(b => b.addEventListener('click', () => declineMember(b.dataset.dc, b)));
+    }, () => {});
+}
+async function approveMember(uid, btn){
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, 'members', uid), { status: 'approved', approvedAt: serverTimestamp(), approvedBy: USER.uid });
+  } catch(e){ alert('Could not approve: ' + e.message); btn.disabled = false; }
+}
+async function declineMember(uid, btn){
+  if (!confirm('Decline this request?')) return;
+  btn.disabled = true;
+  try { await deleteDoc(doc(db, 'members', uid)); }
+  catch(e){ alert('Could not decline: ' + e.message); btn.disabled = false; }
+}
+
+/* ---------- per-user assistant link (Ask button) ---------- */
+let ASSISTANT_URL = null;
+async function loadAssistantLink(){
+  ASSISTANT_URL = null;
+  if (!USER) return;
+  try {
+    const snap = await getDoc(doc(db, 'users', USER.uid));
+    if (snap.exists() && snap.data().assistantUrl) ASSISTANT_URL = snap.data().assistantUrl;
+  } catch(e){}
+}
+const overlayA = document.getElementById('overlayA');
+const openAssistSetup = () => overlayA.classList.add('open');
+const closeAssistSetup = () => overlayA.classList.remove('open');
+document.getElementById('askFab').addEventListener('click', e => {
+  e.preventDefault();
+  if (ASSISTANT_URL) { window.open(ASSISTANT_URL, '_blank', 'noopener'); return; }
+  document.getElementById('assistErr').textContent = '';
+  openAssistSetup();
+});
+document.getElementById('sheetAClose').addEventListener('click', closeAssistSetup);
+overlayA.addEventListener('click', e => { if (e.target === overlayA) closeAssistSetup(); });
+document.getElementById('assistSave').addEventListener('click', async () => {
+  const errEl = document.getElementById('assistErr');
+  const v = document.getElementById('assistUrl').value.trim();
+  if (!/^https:\/\//i.test(v)) { errEl.textContent = 'Paste a valid https link.'; return; }
+  errEl.textContent = '';
+  try {
+    await setDoc(doc(db, 'users', USER.uid), { assistantUrl: v, updatedAt: serverTimestamp() }, { merge: true });
+    ASSISTANT_URL = v;
+    closeAssistSetup();
+    window.open(v, '_blank', 'noopener');
+  } catch(e){ errEl.textContent = 'Could not save: ' + e.message; }
+});
+
+/* ---------- in-app AI add (✨) ---------- */
+const AI_TITLE = { groceries:'item', todos:'task', plans:'event', gifts:'idea' };
+function aiFields(){
+  const m = MEMBER_NAMES.join(', ');
+  return {
+    groceries: `item (required), quantity, pickUpBy (one of: ${m}, or empty), notes`,
+    todos: `task (required), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), notes`,
+    plans: `event (required), date (YYYY-MM-DD or empty), whoIn, notes`,
+    gifts: `idea (required), forWhom (one of: ${m}, or empty), occasion, budget, link (URL or empty), private (true if the user says only me / private / hide this / keep it secret, else false), notes`
+  };
+}
+const AI_DESCR = { groceries:'grocery items', todos:'home to-do tasks', plans:'family plans or events', gifts:'gift ideas' };
+const AI_HINTS = {
+  groceries: 'Describe what to add, e.g. "milk 1 gallon, eggs a dozen, Divya grabs bread"',
+  todos: 'Describe what to add, e.g. "fix the bulb in Ruhaan\u2019s room by Friday, Apoorv"',
+  plans: 'Describe what to add, e.g. "dinner at Arpan\u2019s Saturday 7pm"',
+  gifts: 'Describe what to add, e.g. "espresso machine for Divya, birthday, around $200, keep it private"'
+};
+let AI_ITEMS = [];
+const overlayC = document.getElementById('overlayC');
+const aiErrEl = document.getElementById('aiErr');
+const openAi = () => {
+  document.getElementById('aiTitle').textContent = '✨ AI add to ' + TABS[ACTIVE].label;
+  document.getElementById('aiHint').textContent = AI_HINTS[ACTIVE];
+  document.getElementById('aiText').value = '';
+  AI_ITEMS = []; aiRenderPreview(); aiErrEl.textContent = '';
+  overlayC.classList.add('open');
+};
+const closeAi = () => overlayC.classList.remove('open');
+document.getElementById('aiFab').addEventListener('click', openAi);
+document.getElementById('sheetCClose').addEventListener('click', closeAi);
+overlayC.addEventListener('click', e => { if (e.target === overlayC) closeAi(); });
+
+async function aiParse(text){
+  const today = new Date().toISOString().slice(0,10);
+  const sys = `You are a parser for a family board app. Extract a JSON array of ${AI_DESCR[ACTIVE]} from the user's message. Today is ${today}. Family members: ${MEMBER_NAMES.join(', ')}.
+Rules: each array item is an object with exactly these keys: ${aiFields()[ACTIVE]}. Use "" for unknown optional text fields, false for private. Convert relative dates ("Friday", "tomorrow", "Oct 5") to YYYY-MM-DD using today as reference. Split multiple items ("milk and eggs") into separate objects. If nothing relevant, return []. Return ONLY the JSON array, no other text.`;
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: sys }] },
+      contents: [{ parts: [{ text }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
+    })
+  });
+  if (!r.ok) throw new Error('AI request failed (HTTP ' + r.status + ')');
+  const j = await r.json();
+  const txt = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text) || '[]';
+  const arr = JSON.parse(txt);
+  return Array.isArray(arr) ? arr.filter(it => it && String(it[AI_TITLE[ACTIVE]] || '').trim()) : [];
+}
+
+function aiRenderPreview(){
+  const pv = document.getElementById('aiPreview');
+  const addAll = document.getElementById('aiAddAll');
+  const tkey = AI_TITLE[ACTIVE];
+  if (!AI_ITEMS.length){ pv.innerHTML = ''; addAll.style.display = 'none'; return; }
+  pv.innerHTML = AI_ITEMS.map((it, i) => {
+    const t = String(it[tkey] || '(empty)');
+    const sub = Object.keys(it).filter(k => k !== tkey && k !== 'private' && it[k] !== '' && it[k] !== false && it[k] != null)
+      .map(k => k + ': ' + String(it[k])).join(' · ');
+    return `<div class="aiprev"><div><div class="aiprevt">${esc(t)}${it.private ? ' 🔒' : ''}</div>${sub ? `<div class="aiprevs">${esc(sub)}</div>` : ''}</div><button class="aiprevx" data-i="${i}" aria-label="Remove">✕</button></div>`;
+  }).join('');
+  addAll.style.display = '';
+  addAll.textContent = `Add ${AI_ITEMS.length} item${AI_ITEMS.length > 1 ? 's' : ''}`;
+  pv.querySelectorAll('.aiprevx').forEach(b => b.addEventListener('click', () => { AI_ITEMS.splice(+b.dataset.i, 1); aiRenderPreview(); }));
+}
+
+document.getElementById('aiParse').addEventListener('click', async () => {
+  aiErrEl.textContent = '';
+  const text = document.getElementById('aiText').value.trim();
+  if (!text){ aiErrEl.textContent = 'Type or dictate what to add first.'; return; }
+  if (!GEMINI_API_KEY){ aiErrEl.textContent = 'AI add isn\u2019t set up yet — a Gemini API key is still needed.'; return; }
+  const btn = document.getElementById('aiParse');
+  btn.disabled = true; btn.textContent = 'Parsing…';
+  try {
+    AI_ITEMS = await aiParse(text);
+    aiRenderPreview();
+    if (!AI_ITEMS.length) aiErrEl.textContent = 'Nothing to add found — try rephrasing.';
+  } catch(e){ aiErrEl.textContent = 'Could not parse: ' + e.message; }
+  btn.disabled = false; btn.textContent = 'Parse';
+});
+
+document.getElementById('aiAddAll').addEventListener('click', async () => {
+  aiErrEl.textContent = '';
+  const who = USER ? (USER.displayName || USER.email) : '';
+  const btn = document.getElementById('aiAddAll');
+  btn.disabled = true;
+  try {
+    for (const it of AI_ITEMS){
+      const vals = { createdAt: serverTimestamp() };
+      let targetColl = TABS[ACTIVE].coll;
+      const s = v => String(v || '').trim();
+      if (ACTIVE === 'groceries'){ vals.item = s(it.item); vals.quantity = s(it.quantity); vals.pickUpBy = s(it.pickUpBy); vals.notes = s(it.notes); vals.addedBy = who; vals.bought = false; }
+      else if (ACTIVE === 'todos'){ vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes); vals.done = false; }
+      else if (ACTIVE === 'plans'){ vals.event = s(it.event); vals.date = s(it.date); vals.whoIn = s(it.whoIn); vals.notes = s(it.notes); }
+      else if (ACTIVE === 'gifts'){
+        vals.idea = s(it.idea); vals.forWhom = s(it.forWhom); vals.occasion = s(it.occasion); vals.budget = s(it.budget); vals.link = s(it.link); vals.notes = s(it.notes); vals.addedBy = who;
+        if (it.private && USER){ vals.ownerUid = USER.uid; vals.ownerEmail = USER.email || ''; vals.ownerName = who; targetColl = 'privateGifts'; }
+      }
+      await addDoc(collection(db, targetColl), vals);
+    }
+    closeAi();
+  } catch(e){ aiErrEl.textContent = 'Could not add: ' + e.message; }
+  btn.disabled = false;
+});
+
+/* ---------- dictation (mic) ---------- */
+(() => {
+  const mic = document.getElementById('aiMic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ mic.style.display = 'none'; return; }
+  let rec = null, on = false;
+  mic.addEventListener('click', () => {
+    if (on){ rec.stop(); return; }
+    rec = new SR(); rec.lang = 'en-US'; rec.interimResults = false;
+    rec.onresult = e => {
+      const ta = document.getElementById('aiText');
+      ta.value += (ta.value && !/\s$/.test(ta.value) ? ' ' : '') + e.results[0][0].transcript;
+    };
+    const off = () => { on = false; mic.classList.remove('on'); mic.textContent = '🎤'; };
+    rec.onend = off; rec.onerror = off;
+    try { rec.start(); on = true; mic.classList.add('on'); mic.textContent = '⏹'; } catch(e){}
+  });
+})();
+
+/* ---------- nav ---------- */
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  ACTIVE = b.dataset.tab;
+  window.scrollTo(0,0);
+  render();
+}));
+render();
+
+/* ---------- installable app ---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

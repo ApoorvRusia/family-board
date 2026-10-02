@@ -1,0 +1,14 @@
+# Service-account keys and credentials — NEVER commit
+service-account.json
+*-key.json
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+
+# Node / Firebase CLI leftovers
+node_modules/
+
+# OS
+.DS_Store

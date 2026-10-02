@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+    }
+    // Approved board member (fails closed if no member doc exists).
+    function isApproved() { return signedIn() && me().status == 'approved'; }
+    function isOwner() { return isApproved() && me().role == 'owner'; }
+
+    // Shared board: approved members only.
+    match /groceries/{doc} { allow read, write: if isApproved(); }
+    match /todos/{doc}     { allow read, write: if isApproved(); }
+    match /plans/{doc}     { allow read, write: if isApproved(); }
+    match /gifts/{doc}     { allow read, write: if isApproved(); }
+
+    // Private gift ideas: only the owner (by Firebase UID) can read or write.
+    // ownerUid can never be changed after creation.
+    match /privateGifts/{doc} {
+      allow read: if isApproved()
+                  && resource.data.ownerUid == request.auth.uid;
+      allow create: if isApproved()
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isApproved()
+                    && resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if isApproved()
+                    && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Per-user settings (e.g. personal assistant chat link): each user may
+    // only read and write their own document.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Board membership / join requests.
+    // Member doc: { name, email, status: 'pending'|'approved',
+    //               role: 'member'|'owner', requestedAt, approvedAt, approvedBy }
+    match /members/{uid} {
+      // Read your own doc; approved members can list the roster;
+      // the owner can read any single doc (to review requests).
+      allow get: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow list: if isApproved();
+      // Anyone signed in can request to join — only as a pending regular member.
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.role == 'member';
+      // Only the owner can approve (status change only — no role escalation).
+      allow update: if isOwner()
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['status', 'approvedAt', 'approvedBy']);
+      // You can withdraw your own request; the owner can remove anyone.
+      allow delete: if signedIn() && (request.auth.uid == uid || isOwner());
+    }
+  }
+}
