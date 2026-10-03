@@ -52,6 +52,10 @@ service cloud.firestore {
       allow update: if isOwner()
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly(['status', 'approvedAt', 'approvedBy']);
+      // Members can manage their own notification tokens + prefs (nothing else).
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['fcmTokens', 'notifyPrefs']);
       // You can withdraw your own request; the owner can remove anyone.
       allow delete: if signedIn() && (request.auth.uid == uid || isOwner());
     }
