@@ -2,8 +2,6 @@
 
 A shared, mobile-first family coordination board — groceries, to-dos, plans, and gifts in one place, with real-time sync across everyone's phones. Installable as a phone app (PWA).
 
-**Live demo:** https://family-board-25583.web.app
-
 ## Features
 
 - **Four boards** — 🛒 Grocery List, ✅ Home To-Dos, 📅 Plans, 🎁 Gifts — with live Firestore sync (no refresh needed)
