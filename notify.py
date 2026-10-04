@@ -2,7 +2,7 @@
 """Family Board due-date digest sender (push via FCM).
 
 Run one slot per cron invocation:
-  notify.py --slot morning   # items due today (+ overdue todos) + birthday reminders   ~8 AM PT
+  notify.py --slot morning   # items due today (+ overdue todos/home) + birthday reminders   ~8 AM PT
   notify.py --slot evening   # items due tomorrow                  ~8 PM PT
 
 Only members who actually have something due get a message -- no empty
@@ -153,6 +153,21 @@ def main():
         assignee = (f.get('assignedTo') or '').strip()
         items.append({
             'kind': 'todo', 'title': f.get('task') or '(untitled)',
+            'sub': f' ({assignee})' if assignee else '',
+            'named': {first_name(assignee)} if assignee else set(),
+            'creator_uid': f.get('createdByUid') or '',
+            'creator_first': first_name(f.get('createdBy')),
+        })
+    d = fb.req('GET', 'home', qs='?pageSize=300')
+    for doc in d.get('documents', []):
+        f = doc_fields(doc)
+        if f.get('done') or not match(f.get('dueDate') or ''):
+            continue
+        assignee = (f.get('assignedTo') or '').strip()
+        typ = (f.get('type') or '').strip()
+        title = '\U0001f3e0 ' + (f.get('task') or '(untitled)') + (f' [{typ}]' if typ else '')
+        items.append({
+            'kind': 'home', 'title': title,
             'sub': f' ({assignee})' if assignee else '',
             'named': {first_name(assignee)} if assignee else set(),
             'creator_uid': f.get('createdByUid') or '',
