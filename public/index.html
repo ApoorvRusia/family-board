@@ -555,6 +555,8 @@ function fieldHtml(key, label, type, req){
     inner = `<input type="number" inputmode="numeric" min="0" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   } else if (key === 'vehicle'){
     inner = `<input type="text" list="carNames" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
+  } else if (key === 'task' && ACTIVE === 'cars'){
+    inner = `<input type="text" list="carTasks" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   } else {
     inner = `<input type="text" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   }
@@ -596,6 +598,8 @@ function openSheet(){
     });
     const known = [...new Set(CACHE.cars.map(r => (r.d.vehicle || '').trim()).filter(Boolean))];
     if (known.length) document.getElementById('formGrid').innerHTML += `<datalist id="carNames">${known.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
+    const knownTasks = [...new Set(CACHE.cars.map(r => (r.d.task || '').trim()).filter(Boolean))];
+    if (knownTasks.length) document.getElementById('formGrid').innerHTML += `<datalist id="carTasks">${knownTasks.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
   }
   if (ACTIVE === 'home'){
     typeSel = 'Maintenance';
