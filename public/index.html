@@ -72,6 +72,9 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
   border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
 #settingsBtn{position:relative}
 #settingsBtn .bdg{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
+#bellBtn{position:relative}
+#bellBtn .bdg{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom));background:#2e2c25;color:#fff;padding:12px 18px;border-radius:14px;font-size:14px;z-index:60;display:none;max-width:88%;box-shadow:0 8px 22px rgba(0,0,0,.35);white-space:pre-line;text-align:center}
 .setbody h4{margin:18px 0 8px;font-size:15px}
 .setbody h4:first-child{margin-top:2px}
 .sethint{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 12px}
@@ -146,6 +149,7 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="pchip" id="bellBtn" style="display:none" aria-label="Coming up">🔔<span class="bdg" id="bellBdg" style="display:none"></span></button>
         <button class="pchip" id="settingsBtn" style="display:none" aria-label="Settings">⚙️<span class="bdg" id="setBdg" style="display:none"></span></button>
         <button class="pchip" id="authChip" style="display:none">👤</button>
       </div>
@@ -201,11 +205,24 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
     </div>
     <button class="addbtn" id="shareBoard" type="button">Share…</button>
     <div id="qrwrap"><div id="qr"></div><p class="sethint" style="margin-top:8px">Scan to open the board</p></div>
+    <h4>🔔 Notifications</h4>
+    <p class="sethint">Morning digest (due today, ~8 AM) and evening heads-up (due tomorrow, ~8 PM) — only sent when there’s something due.</p>
+    <button class="addbtn" id="enableNotif" type="button">Enable notifications</button>
+    <p class="sethint" id="notifStatus"></p>
+    <label class="privrow"><input type="checkbox" id="prefMorning" checked> ☀️ Morning digest — due today</label>
+    <label class="privrow"><input type="checkbox" id="prefEvening" checked> 🌙 Evening heads-up — due tomorrow</label>
+    <label class="privrow"><input type="checkbox" id="prefOnlyMine"> 👤 Only items involving me</label>
     <div id="ownerZone" style="display:none">
       <h4>👥 Membership requests</h4>
       <div id="reqList"><p class="sethint">Loading…</p></div>
     </div>
   </div>
+</div></div>
+<div id="toast"></div>
+<div id="overlayU" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3>⏰ Coming up</h3><button id="sheetUClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div class="setbody" id="upcomingList"></div>
 </div></div>
 <div id="gate"><div class="gatecard" id="gateCard"></div></div>
 <nav id="tabs">
@@ -219,13 +236,15 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
 {"imports":{
   "firebase/app":"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
   "firebase/firestore":"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js",
-  "firebase/auth":"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"
+  "firebase/auth":"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js",
+  "firebase/messaging":"https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js"
 }}
 </script>
 <script type="module">
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAdF6OOfDklYdw-bN7DF_RciW-1hm1Maq4",
@@ -242,6 +261,7 @@ const db = getFirestore(fbApp);
    Leave empty to disable AI add. Restrict the key to your site in Google Cloud Console. */
 const GEMINI_API_KEY = "";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
+const VAPID_KEY = "BAqqZgC_4toX8Xh0k45YD26Wf2eExF1UBfK3y6rzvluMIDQpd-NhWTLlLIDsJu4YltrwtLGNVnZiYf-uezxXpIs";  /* Web Push certificate key: Firebase Console > Project settings > Cloud Messaging > Web push certificates. Empty = push disabled. */
 
 /* ---------- model ---------- */
 const BOARD_URL = 'https://family-board-25583.web.app/';
@@ -338,6 +358,7 @@ function render(){
     if (!confirm('Delete this item?')) return;
     deleteDoc(doc(db, b.dataset.coll || tab.coll, b.dataset.del)).catch(e => alert('Could not delete: ' + e.message));
   }));
+  updateBell();
 }
 
 /* ---------- realtime (starts after sign-in) ---------- */
@@ -409,6 +430,7 @@ document.getElementById('addForm').addEventListener('submit', e => {
   let targetColl = TABS[ACTIVE].coll;
   if (ACTIVE === 'groceries'){ vals.addedBy = who; vals.bought = false; }
   if (ACTIVE === 'todos'){ vals.done = false; }
+  if (ACTIVE === 'todos' || ACTIVE === 'plans'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
   if (ACTIVE === 'gifts'){
     vals.addedBy = who;
     const priv = document.getElementById('privToggle');
@@ -533,8 +555,11 @@ async function enterApp(){
   clearWatchers();
   gateEl.classList.add('hidden');
   settingsBtn.style.display = '';
+  bellBtn.style.display = '';
   startRealtime();
   loadAssistantLink();
+  loadNotifPrefs();
+  registerFcmToken();
   await loadMemberNames();
   if (MEMBER && MEMBER.role === 'owner') watchRequests();
 }
@@ -557,6 +582,7 @@ onAuthStateChanged(auth, user => {
     showGate('signin');
     authChip.style.display = 'none';
     settingsBtn.style.display = 'none';
+    bellBtn.style.display = 'none';
     CACHE.privateGifts = [];
     ASSISTANT_URL = null; MEMBER = null; MEMBER_NAMES = ['Apoorv', 'Divya'];
     clearWatchers();
@@ -646,6 +672,140 @@ async function declineMember(uid, btn){
   try { await deleteDoc(doc(db, 'members', uid)); }
   catch(e){ alert('Could not decline: ' + e.message); btn.disabled = false; }
 }
+
+/* ---------- due-date notifications (in-app bell + push digests) ---------- */
+const bellBtn = document.getElementById('bellBtn');
+const bellBdg = document.getElementById('bellBdg');
+function dueInDays(iso){
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.round((d - t) / 86400000);
+}
+function updateBell(){
+  let n = 0;
+  CACHE.todos.forEach(r => { if (!r.d.done){ const k = dueInDays(r.d.dueDate); if (k !== null && k <= 1) n++; } });
+  CACHE.plans.forEach(r => { const k = dueInDays(r.d.date); if (k !== null && k >= 0 && k <= 1) n++; });
+  bellBdg.style.display = n ? '' : 'none';
+  bellBdg.textContent = n;
+}
+function upcomingGroups(){
+  const g = { overdue: [], today: [], tomorrow: [] };
+  CACHE.todos.forEach(r => {
+    if (r.d.done) return;
+    const k = dueInDays(r.d.dueDate); if (k === null) return;
+    const label = r.d.task + (r.d.assignedTo ? ' \u2014 ' + r.d.assignedTo : '');
+    if (k < 0) g.overdue.push(['\u2705', label, r.d.dueDate]);
+    else if (k === 0) g.today.push(['\u2705', label, '']);
+    else if (k === 1) g.tomorrow.push(['\u2705', label, '']);
+  });
+  CACHE.plans.forEach(r => {
+    const k = dueInDays(r.d.date); if (k === null) return;
+    const label = r.d.event + (r.d.whoIn ? ' \u2014 ' + r.d.whoIn : '');
+    if (k === 0) g.today.push(['\uD83D\uDCC5', label, '']);
+    else if (k === 1) g.tomorrow.push(['\uD83D\uDCC5', label, '']);
+  });
+  return g;
+}
+const openUpcoming = () => {
+  const g = upcomingGroups();
+  const row = (e, label, extra) => `<div class="reqrow"><span>${e} ${esc(label)}</span>${extra ? `<span class="pill red">${esc(extra)}</span>` : ''}</div>`;
+  const sect = (title, items) => items.length ? `<h4>${title}</h4>` + items.map(x => row(x[0], x[1], x[2])).join('') : '';
+  const html = sect('\uD83D\uDD34 Overdue', g.overdue) + sect('\uD83D\uDCCD Due today', g.today) + sect('\uD83C\uDF19 Due tomorrow', g.tomorrow);
+  document.getElementById('upcomingList').innerHTML = html || '<p class="sethint">Nothing due in the next couple of days. \uD83C\uDF89</p>';
+  document.getElementById('overlayU').classList.add('open');
+};
+const closeUpcoming = () => document.getElementById('overlayU').classList.remove('open');
+bellBtn.addEventListener('click', openUpcoming);
+document.getElementById('sheetUClose').addEventListener('click', closeUpcoming);
+document.getElementById('overlayU').addEventListener('click', e => { if (e.target === document.getElementById('overlayU')) closeUpcoming(); });
+
+let toastT = null;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(toastT); toastT = setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+let NOTIF_PREFS = { morning: true, evening: true, onlyMine: false };
+let TOKEN_OK = false;
+async function loadNotifPrefs(){
+  if (USER){
+    try {
+      const s = await getDoc(doc(db, 'members', USER.uid));
+      if (s.exists()){
+        const pr = s.data().notifyPrefs;
+        if (pr) NOTIF_PREFS = { morning: pr.morning !== false, evening: pr.evening !== false, onlyMine: !!pr.onlyMine };
+        TOKEN_OK = ((s.data().fcmTokens) || []).length > 0;
+      }
+    } catch(e){}
+  }
+  document.getElementById('prefMorning').checked = NOTIF_PREFS.morning;
+  document.getElementById('prefEvening').checked = NOTIF_PREFS.evening;
+  document.getElementById('prefOnlyMine').checked = NOTIF_PREFS.onlyMine;
+  updateNotifStatus();
+}
+function updateNotifStatus(){
+  const el = document.getElementById('notifStatus');
+  const btn = document.getElementById('enableNotif');
+  if (!('Notification' in window)){ el.textContent = 'This browser does not support notifications.'; btn.style.display = 'none'; return; }
+  if (!VAPID_KEY){ el.textContent = 'Push isn\u2019t set up on this board yet.'; btn.style.display = 'none'; return; }
+  const perm = Notification.permission;
+  if (perm === 'granted'){
+    el.textContent = TOKEN_OK ? '\u2705 Notifications are on for this device.'
+      : 'Almost done — tap Enable to finish registering this device.';
+    btn.style.display = TOKEN_OK ? 'none' : '';
+    if (!TOKEN_OK) btn.textContent = 'Finish setup';
+  } else {
+    btn.textContent = 'Enable notifications';
+    el.textContent = perm === 'denied' ? '\uD83D\uDEAB Notifications are blocked — allow them in your browser/device settings to turn the digests on.'
+      : 'Tap Enable to get the morning and evening digests on this device.';
+    btn.style.display = '';
+  }
+}
+async function saveNotifPrefs(){
+  NOTIF_PREFS = {
+    morning: document.getElementById('prefMorning').checked,
+    evening: document.getElementById('prefEvening').checked,
+    onlyMine: document.getElementById('prefOnlyMine').checked,
+  };
+  if (USER) await updateDoc(doc(db, 'members', USER.uid), { notifyPrefs: NOTIF_PREFS }).catch(() => {});
+}
+async function registerFcmToken(){
+  const el = document.getElementById('notifStatus');
+  const btn = document.getElementById('enableNotif');
+  if (!VAPID_KEY || !('Notification' in window) || Notification.permission !== 'granted' || !USER) return;
+  el.textContent = 'Registering this device\u2026';
+  try {
+    const token = await getToken(getMessaging(fbApp), { vapidKey: VAPID_KEY });
+    if (!token) throw new Error('empty token returned');
+    await updateDoc(doc(db, 'members', USER.uid), { fcmTokens: arrayUnion(token) });
+    TOKEN_OK = true;
+    el.textContent = '\u2705 Notifications are on for this device.';
+    btn.style.display = 'none';
+  } catch(e){
+    TOKEN_OK = false;
+    el.textContent = '\u26A0\uFE0F Could not register this device: ' + (e && (e.code || e.message) || 'unknown error') + ' — tap the button to retry.';
+    btn.style.display = '';
+    btn.textContent = 'Retry registration';
+  }
+}
+document.getElementById('enableNotif').addEventListener('click', async () => {
+  if (!('Notification' in window) || !VAPID_KEY) return;
+  const perm = await Notification.requestPermission();
+  updateNotifStatus();
+  if (perm === 'granted') registerFcmToken();
+});
+['prefMorning', 'prefEvening', 'prefOnlyMine'].forEach(id =>
+  document.getElementById(id).addEventListener('change', saveNotifPrefs));
+try {
+  onMessage(getMessaging(fbApp), payload => {
+    const n = payload.notification || {};
+    if (n.title) showToast(n.title + (n.body ? '\n' + n.body : ''));
+    updateBell();
+  });
+} catch(e){}
 
 /* ---------- per-user assistant link (Ask button) ---------- */
 let ASSISTANT_URL = null;
@@ -775,8 +935,8 @@ document.getElementById('aiAddAll').addEventListener('click', async () => {
       let targetColl = TABS[ACTIVE].coll;
       const s = v => String(v || '').trim();
       if (ACTIVE === 'groceries'){ vals.item = s(it.item); vals.quantity = s(it.quantity); vals.pickUpBy = s(it.pickUpBy); vals.notes = s(it.notes); vals.addedBy = who; vals.bought = false; }
-      else if (ACTIVE === 'todos'){ vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes); vals.done = false; }
-      else if (ACTIVE === 'plans'){ vals.event = s(it.event); vals.date = s(it.date); vals.whoIn = s(it.whoIn); vals.notes = s(it.notes); }
+      else if (ACTIVE === 'todos'){ vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes); vals.done = false; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
+      else if (ACTIVE === 'plans'){ vals.event = s(it.event); vals.date = s(it.date); vals.whoIn = s(it.whoIn); vals.notes = s(it.notes); vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
       else if (ACTIVE === 'gifts'){
         vals.idea = s(it.idea); vals.forWhom = s(it.forWhom); vals.occasion = s(it.occasion); vals.budget = s(it.budget); vals.link = s(it.link); vals.notes = s(it.notes); vals.addedBy = who;
         if (it.private && USER){ vals.ownerUid = USER.uid; vals.ownerEmail = USER.email || ''; vals.ownerName = who; targetColl = 'privateGifts'; }
