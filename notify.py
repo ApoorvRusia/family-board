@@ -2,7 +2,7 @@
 """Family Board due-date digest sender (push via FCM).
 
 Run one slot per cron invocation:
-  notify.py --slot morning   # items due today (+ overdue todos)   ~8 AM PT
+  notify.py --slot morning   # items due today (+ overdue todos) + birthday reminders   ~8 AM PT
   notify.py --slot evening   # items due tomorrow                  ~8 PM PT
 
 Only members who actually have something due get a message -- no empty
@@ -11,6 +11,9 @@ digests. Routing per item:
   - todo with no assignee -> every approved member
   - plan with whoIn       -> those members + creator
   - plan with no whoIn    -> every approved member
+  - birthdays (morning only): MM-DD is today or exactly 7 days out
+    -> every approved member with morning enabled (family-wide;
+    ignores onlyMine so nobody misses a family birthday)
 
 Per-member prefs live in members/{uid}.notifyPrefs
   { morning: true, evening: true, onlyMine: false }  (defaults when absent)
@@ -172,6 +175,25 @@ def main():
             'creator_uid': f.get('createdByUid') or '',
             'creator_first': first_name(f.get('createdBy')),
         })
+    # ---- birthdays (morning slot only): today + exactly 7 days out ----
+    # Stateless exact-match: each birthday fires twice, no 7-day spam.
+    if slot == 'morning':
+        d = fb.req('GET', 'birthdays', qs='?pageSize=300')
+        mm_today = today.strftime('%m-%d')
+        mm_week = (today + timedelta(days=7)).strftime('%m-%d')
+        for doc in d.get('documents', []):
+            f = doc_fields(doc)
+            mmdd = (f.get('date') or '').strip()
+            name = (f.get('name') or '').strip() or '(unknown)'
+            if mmdd == mm_today:
+                note = '\U0001f382 ' + name + ' \u2014 today!'
+            elif mmdd == mm_week:
+                note = '\U0001f382 ' + name + ' \u2014 in a week'
+            else:
+                continue
+            items.append({'kind': 'birthday', 'title': note, 'sub': '',
+                          'named': set(), 'creator_uid': '', 'creator_first': '',
+                          'family_wide': True})
     if not items:
         print(f'{slot}: nothing due; no digests sent')
         return
@@ -194,7 +216,8 @@ def main():
             m = members[uid]
             if not m['prefs'].get(slot, True):
                 continue
-            if m['prefs'].get('onlyMine') and uid not in involved:
+            if m['prefs'].get('onlyMine') and uid not in involved \
+                    and not it.get('family_wide'):
                 continue
             per_member[uid].append(it)
 

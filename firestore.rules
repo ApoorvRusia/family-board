@@ -15,6 +15,7 @@ service cloud.firestore {
     match /todos/{doc}     { allow read, write: if isApproved(); }
     match /plans/{doc}     { allow read, write: if isApproved(); }
     match /gifts/{doc}     { allow read, write: if isApproved(); }
+    match /birthdays/{doc} { allow read, write: if isApproved(); }
 
     // Private gift ideas: only the owner (by Firebase UID) can read or write.
     // ownerUid can never be changed after creation.

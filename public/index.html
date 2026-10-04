@@ -234,6 +234,7 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
   <button data-tab="todos"><span class="ico">✅</span><span>To-Dos</span></button>
   <button data-tab="plans"><span class="ico">📅</span><span>Plans</span></button>
   <button data-tab="gifts"><span class="ico">🎁</span><span>Gifts</span></button>
+  <button data-tab="birthdays"><span class="ico">🎂</span><span>Birthdays</span></button>
 </nav>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="importmap">
@@ -274,16 +275,18 @@ const TABS = {
   groceries: { coll:'groceries', title:'Grocery List',   countLbl:'items',    emoji:'🛒', toggle:'bought' },
   todos:     { coll:'todos',     title:'Home To-Dos',    countLbl:'open',     emoji:'✅', toggle:'done'   },
   plans:     { coll:'plans',     title:'Family Plans',   countLbl:'upcoming', emoji:'📅', toggle:null     },
-  gifts:     { coll:'gifts',     title:'Gift Ideas',     countLbl:'ideas',    emoji:'🎁', toggle:null     }
+  gifts:     { coll:'gifts',     title:'Gift Ideas',     countLbl:'ideas',     emoji:'🎁', toggle:null     },
+  birthdays: { coll:'birthdays', title:'Birthdays',      countLbl:'birthdays', emoji:'🎂', toggle:null     }
 };
 const FORMS = {
   groceries: [['item','Item','text',1],['quantity','Quantity','text',0],['pickUpBy','Pick up by','select',0],['notes','Notes','text',0]],
   todos:     [['task','Task','text',1],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]],
   plans:     [['event','Event','text',1],['date','Date','date',0],['whoIn','Who is in','text',0],['notes','Notes','text',0]],
-  gifts:     [['idea','Idea','text',1],['forWhom','For','select',0],['occasion','Occasion','text',0],['budget','Budget','text',0],['link','Link','text',0]]
+  gifts:     [['idea','Idea','text',1],['forWhom','For','select',0],['occasion','Occasion','text',0],['budget','Budget','text',0],['link','Link','text',0]],
+  birthdays: [['name','Name','text',1],['date','Birthday','date',1]]
 };
 let ACTIVE = 'groceries';
-const CACHE = { groceries:[], todos:[], plans:[], gifts:[], privateGifts:[] };
+const CACHE = { groceries:[], todos:[], plans:[], gifts:[], birthdays:[], privateGifts:[] };
 
 const contentEl = document.getElementById('content');
 const overlayEl = document.getElementById('overlay');
@@ -316,6 +319,36 @@ function dateBlock(iso){
   if (isNaN(d)) return mk('—', '?', true);
   return mk(d.toLocaleDateString(undefined,{month:'short'}), d.getDate(), false);
 }
+/* birthdays: date stored as "MM-DD" */
+function bdayParts(mmdd){
+  const mo = parseInt((mmdd || '').slice(0, 2), 10), dy = parseInt((mmdd || '').slice(3, 5), 10);
+  return (mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31) ? [mo, dy] : null;
+}
+function bdayInDays(mmdd){
+  const p = bdayParts(mmdd); if (!p) return null;
+  const t = new Date(); t.setHours(0,0,0,0);
+  const mk = yy => { const d = new Date(yy, p[0]-1, p[1]); return d.getMonth() === p[0]-1 ? d : new Date(yy, p[0]-1, p[1]-1); };
+  let d = mk(t.getFullYear());
+  if (d < t) d = mk(t.getFullYear() + 1);
+  return Math.round((d - t) / 86400000);
+}
+function fmtBday(mmdd){
+  const p = bdayParts(mmdd); if (!p) return mmdd || '';
+  return new Date(2000, p[0]-1, p[1]).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+}
+function bdayBlock(mmdd){
+  const p = bdayParts(mmdd);
+  if (!p) return '<div class="dateblock plain"><div class="m">\u2014</div><div class="d">?</div></div>';
+  const d = new Date(2000, p[0]-1, p[1]);
+  return `<div class="dateblock plain"><div class="m">${d.toLocaleDateString(undefined,{month:'short'})}</div><div class="d">${d.getDate()}</div></div>`;
+}
+function bdayBadge(mmdd){
+  const k = bdayInDays(mmdd);
+  if (k === null) return pill(mmdd || '', '');
+  if (k === 0) return '<span class="pill amber">\uD83C\uDF82 today!</span>';
+  if (k === 1) return '<span class="pill amber">tomorrow</span>';
+  return `<span class="pill">in ${k}d</span>`;
+}
 
 function card(tab, id, v, coll){
   coll = coll || TABS[tab].coll;
@@ -341,6 +374,11 @@ function card(tab, id, v, coll){
     title = esc(v.idea);
     row = (coll === 'privateGifts' ? pill('🔒 Only me', 'amber') : '') + pill(v.forWhom ? 'For '+v.forWhom : '', 'pink') + pill(v.budget || '', 'amber') + pill(v.occasion || '', '');
     meta = (v.link ? `<div><a href="${esc(v.link)}">🔗 View link</a></div>` : '') + (v.addedBy ? `<div>Added by ${esc(v.addedBy)}</div>` : '');
+  } else if (tab === 'birthdays'){
+    title = '\uD83C\uDF82 ' + esc(v.name);
+    row = `<span class="pill">${esc(fmtBday(v.date))}</span>` + bdayBadge(v.date);
+    meta = v.createdBy ? `<div>Added by ${esc(v.createdBy)}</div>` : '';
+    lead = bdayBlock(v.date);
   }
   return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
     `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
@@ -353,7 +391,14 @@ function render(){
   const tab = TABS[ACTIVE];
   let rows = [...CACHE[ACTIVE]];
   if (ACTIVE === 'gifts') rows = rows.concat(CACHE.privateGifts);
-  rows.sort((a,b) => ts(b.d) - ts(a.d));
+  if (ACTIVE === 'birthdays'){
+    rows.sort((a,b) => {
+      const ka = bdayInDays(a.d.date), kb = bdayInDays(b.d.date);
+      return (ka === null ? 9999 : ka) - (kb === null ? 9999 : kb);
+    });
+  } else {
+    rows.sort((a,b) => ts(b.d) - ts(a.d));
+  }
   const open = rows.filter(r => !(tab.toggle && r.d[tab.toggle])).length;
   let html = `<div class="secthead"><h2>${tab.title}</h2><span class="count">${open} ${tab.countLbl}</span></div>`;
   if (!rows.length) html += `<div class="empty"><span class="big">${tab.emoji}</span>Nothing here yet.<br>Tap ＋ to add the first one.</div>`;
@@ -413,7 +458,7 @@ function fieldHtml(key, label, type, req){
   if (type === 'select'){
     inner = `<select data-key="${key}"><option value="">—</option>${MEMBER_NAMES.map(m=>`<option>${esc(m)}</option>`).join('')}</select>`;
   } else if (type === 'date'){
-    inner = `<input type="date" data-key="${key}">`;
+    inner = `<input type="date" data-key="${key}"${reqAttr}>`;
   } else {
     inner = `<input type="text" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   }
@@ -462,6 +507,10 @@ document.getElementById('addForm').addEventListener('submit', e => {
     if (!vals.dueDate) vals.dueDate = isoDay(new Date());
   }
   if (ACTIVE === 'todos' || ACTIVE === 'plans'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
+  if (ACTIVE === 'birthdays'){
+    if (vals.date && vals.date.length >= 10) vals.date = vals.date.slice(5);  /* YYYY-MM-DD -> MM-DD */
+    vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
+  }
   if (ACTIVE === 'gifts'){
     vals.addedBy = who;
     const priv = document.getElementById('privToggle');
@@ -718,11 +767,12 @@ function updateBell(){
   let n = 0;
   CACHE.todos.forEach(r => { if (!r.d.done){ const k = dueInDays(r.d.dueDate); if (k !== null && k <= 1) n++; } });
   CACHE.plans.forEach(r => { const k = dueInDays(r.d.date); if (k !== null && k >= 0 && k <= 1) n++; });
+  CACHE.birthdays.forEach(r => { const k = bdayInDays(r.d.date); if (k !== null && k <= 7) n++; });
   bellBdg.style.display = n ? '' : 'none';
   bellBdg.textContent = n;
 }
 function upcomingGroups(){
-  const g = { overdue: [], today: [], tomorrow: [] };
+  const g = { overdue: [], today: [], tomorrow: [], bday: [] };
   CACHE.todos.forEach(r => {
     if (r.d.done) return;
     const k = dueInDays(r.d.dueDate); if (k === null) return;
@@ -737,13 +787,22 @@ function upcomingGroups(){
     if (k === 0) g.today.push(['\uD83D\uDCC5', label, '']);
     else if (k === 1) g.tomorrow.push(['\uD83D\uDCC5', label, '']);
   });
+  const bd = [];
+  CACHE.birthdays.forEach(r => {
+    const k = bdayInDays(r.d.date); if (k === null || k > 7) return;
+    bd.push([k, r.d.name]);
+  });
+  bd.sort((a,b) => a[0] - b[0]).forEach(([k, name]) => {
+    const when = k === 0 ? 'today!' : k === 1 ? 'tomorrow' : `in ${k}d`;
+    g.bday.push(['\uD83C\uDF82', `${name} \u2014 ${when}`, '']);
+  });
   return g;
 }
 const openUpcoming = () => {
   const g = upcomingGroups();
   const row = (e, label, extra) => `<div class="reqrow"><span>${e} ${esc(label)}</span>${extra ? `<span class="pill red">${esc(extra)}</span>` : ''}</div>`;
   const sect = (title, items) => items.length ? `<h4>${title}</h4>` + items.map(x => row(x[0], x[1], x[2])).join('') : '';
-  const html = sect('\uD83D\uDD34 Overdue', g.overdue) + sect('\uD83D\uDCCD Due today', g.today) + sect('\uD83C\uDF19 Due tomorrow', g.tomorrow);
+  const html = sect('\uD83D\uDD34 Overdue', g.overdue) + sect('\uD83D\uDCCD Due today', g.today) + sect('\uD83C\uDF19 Due tomorrow', g.tomorrow) + sect('\uD83C\uDF82 Birthdays', g.bday);
   document.getElementById('upcomingList').innerHTML = html || '<p class="sethint">Nothing due in the next couple of days. \uD83C\uDF89</p>';
   document.getElementById('overlayU').classList.add('open');
 };
@@ -1005,6 +1064,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click
   document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   ACTIVE = b.dataset.tab;
+  document.getElementById('aiFab').style.display = ACTIVE === 'birthdays' ? 'none' : '';
   window.scrollTo(0,0);
   render();
 }));
