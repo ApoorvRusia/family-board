@@ -173,6 +173,22 @@ def main():
             'creator_uid': f.get('createdByUid') or '',
             'creator_first': first_name(f.get('createdBy')),
         })
+    d = fb.req('GET', 'cars', qs='?pageSize=300')
+    for doc in d.get('documents', []):
+        f = doc_fields(doc)
+        if f.get('done') or not match(f.get('dueDate') or ''):
+            continue
+        assignee = (f.get('assignedTo') or '').strip()
+        veh = (f.get('vehicle') or '').strip()
+        typ = (f.get('type') or '').strip()
+        title = '\U0001f697 ' + (f.get('task') or '(untitled)') + (f' [{veh}]' if veh else '') + (f' ({typ})' if typ else '')
+        items.append({
+            'kind': 'car', 'title': title,
+            'sub': f' ({assignee})' if assignee else '',
+            'named': {first_name(assignee)} if assignee else set(),
+            'creator_uid': f.get('createdByUid') or '',
+            'creator_first': first_name(f.get('createdBy')),
+        })
     d = fb.req('GET', 'plans', qs='?pageSize=300')
     for doc in d.get('documents', []):
         f = doc_fields(doc)

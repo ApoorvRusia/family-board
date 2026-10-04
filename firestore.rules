@@ -17,6 +17,7 @@ service cloud.firestore {
     match /gifts/{doc}     { allow read, write: if isApproved(); }
     match /birthdays/{doc} { allow read, write: if isApproved(); }
     match /home/{doc}      { allow read, write: if isApproved(); }
+    match /cars/{doc}      { allow read, write: if isApproved(); }
     match /meta/{doc}      { allow read, write: if isApproved(); }
 
     // Private gift ideas: only the owner (by Firebase UID) can read or write.

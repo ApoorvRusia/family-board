@@ -318,7 +318,8 @@ const TABS = {
   plans:     { coll:'plans',     title:'Family Plans',   countLbl:'upcoming', emoji:'📅', toggle:null     },
   gifts:     { coll:'gifts',     title:'Gift Ideas',     countLbl:'ideas',     emoji:'🎁', toggle:null     },
   birthdays: { coll:'birthdays', title:'Birthdays',      countLbl:'birthdays', emoji:'🎂', toggle:null     },
-  home:      { coll:'home',      title:'Home',           countLbl:'items',     emoji:'🏠', toggle:'done'   }
+  home:      { coll:'home',      title:'Home',           countLbl:'items',     emoji:'🏠', toggle:'done'   },
+  cars:      { coll:'cars',      title:'Car',            countLbl:'items',     emoji:'🚗', toggle:'done'   }
 };
 const FORMS = {
   groceries: [['item','Item','text',1],['quantity','Quantity','text',0],['pickUpBy','Pick up by','select',0],['notes','Notes','text',0]],
@@ -326,10 +327,11 @@ const FORMS = {
   plans:     [['event','Event','text',1],['date','Date','date',0],['whoIn','Who is in','text',0],['notes','Notes','text',0]],
   gifts:     [['idea','Idea','text',1],['forWhom','For','select',0],['occasion','Occasion','text',0],['budget','Budget','text',0],['link','Link','text',0]],
   birthdays: [['name','Name','text',1],['date','Birthday','date',1]],
-  home: [['task','Task','text',1],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]]
+  home: [['task','Task','text',1],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]],
+  cars: [['task','Task','text',1],['vehicle','Vehicle','text',0],['odometer','Odometer (mi)','number',0],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]]
 };
 let ACTIVE = 'groceries';
-const CACHE = { groceries:[], todos:[], plans:[], gifts:[], birthdays:[], home:[], privateGifts:[] };
+const CACHE = { groceries:[], todos:[], plans:[], gifts:[], birthdays:[], home:[], cars:[], privateGifts:[] };
 
 const contentEl = document.getElementById('content');
 const overlayEl = document.getElementById('overlay');
@@ -344,6 +346,10 @@ let repeatSel = 0;
 let typeSel = 'Maintenance';
 const typeEmoji = t => t === 'Repair' ? '🔧' : t === 'Replacement' ? '🔄' : '🗓';
 const typeCls = t => t === 'Repair' ? 'red' : t === 'Replacement' ? 'purple' : 'teal';
+let carTypeSel = 'Service';
+const carTypeEmoji = t => t === 'Repair' ? '🔧' : t === 'Tires' ? '🧞' : t === 'Paperwork' ? '📋' : '🛢}';
+const carTypeCls = t => t === 'Repair' ? 'red' : t === 'Tires' ? 'teal' : t === 'Paperwork' ? 'purple' : 'amber';
+const fmtOdo = s => { const n = parseInt(String(s).replace(/[^0-9]/g,''), 10); return isNaN(n) ? '' : n.toLocaleString('en-US'); };
 const daysAgo = iso => { if (!iso) return null; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return null; const t = new Date(); t.setHours(0,0,0,0); return Math.round((t - d) / 86400000); };
 const lastDoneLine = (who, iso) => { const n = daysAgo(iso); const when = n == null ? '' : n <= 0 ? 'today' : n + 'd ago'; return `<div class="lastdone">✓ ${esc(who)}${when ? ' · ' + when : ''}</div>`; };
 /* ---------- rendering ---------- */
@@ -425,6 +431,11 @@ function card(tab, id, v, coll){
     row = pill(v.type ? typeEmoji(v.type) + ' ' + v.type : '', typeCls(v.type)) + dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber') + (v.repeatDays ? pill(repeatLabel(v.repeatDays), 'purple') : '') + claimBtn(id, v);
     meta = (v.repeatDays && v.lastDoneBy ? lastDoneLine(v.lastDoneBy, v.lastDoneAt) : '') + (v.notes ? `<div>${esc(v.notes)}</div>` : '');
     lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} data-repeat="${v.repeatDays || ''}" aria-label="done">`;
+  } else if (tab === 'cars'){
+    title = esc(v.task);
+    row = pill(v.type ? carTypeEmoji(v.type) + ' ' + v.type : '', carTypeCls(v.type)) + (v.vehicle ? pill('🚗 ' + v.vehicle, '') : '') + (v.odometer ? pill('🛣} ' + fmtOdo(v.odometer) + ' mi', '') : '') + dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber') + (v.repeatDays ? pill(repeatLabel(v.repeatDays), 'purple') : '') + claimBtn(id, v);
+    meta = (v.repeatDays && v.lastDoneBy ? lastDoneLine(v.lastDoneBy, v.lastDoneAt) : '') + (v.notes ? `<div>${esc(v.notes)}</div>` : '');
+    lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} data-repeat="${v.repeatDays || ''}" aria-label="done">`;
   } else if (tab === 'plans'){
     title = esc(v.event);
     row = pill(v.whoIn ? '👪 '+v.whoIn : '', 'purple');
@@ -451,7 +462,7 @@ function render(){
   const tab = TABS[ACTIVE];
   let rows = [...CACHE[ACTIVE]];
   if (ACTIVE === 'gifts') rows = rows.concat(CACHE.privateGifts);
-  if (ACTIVE === 'home'){
+  if (ACTIVE === 'home' || ACTIVE === 'cars'){
     rows.sort((a,b) => {
       const ka = a.d.dueDate || '9999', kb = b.d.dueDate || '9999';
       return ka < kb ? -1 : ka > kb ? 1 : ts(b.d) - ts(a.d);
@@ -474,7 +485,7 @@ function render(){
   if (hb) hb.addEventListener('click', goHubBack);
   contentEl.querySelectorAll('.check').forEach(cb => cb.addEventListener('change', () => {
     const rep = parseInt(cb.dataset.repeat || '0', 10);
-    if (rep > 0 && cb.checked && (tab.coll === 'todos' || tab.coll === 'home')){
+    if (rep > 0 && cb.checked && (tab.coll === 'todos' || tab.coll === 'home' || tab.coll === 'cars')){
       const nd = new Date(); nd.setDate(nd.getDate() + rep);
       const iso = isoDay(nd);
       const who = USER ? (USER.displayName || USER.email) : '';
@@ -540,6 +551,12 @@ function fieldHtml(key, label, type, req){
     inner = `<select data-key="${key}"><option value="">—</option>${MEMBER_NAMES.map(m=>`<option>${esc(m)}</option>`).join('')}</select>`;
   } else if (type === 'date'){
     inner = `<input type="date" data-key="${key}"${reqAttr}>`;
+  } else if (type === 'number'){
+    inner = `<input type="number" inputmode="numeric" min="0" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
+  } else if (key === 'vehicle'){
+    inner = `<input type="text" list="carNames" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
+  } else if (key === 'task' && ACTIVE === 'cars'){
+    inner = `<input type="text" list="carTasks" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   } else {
     inner = `<input type="text" data-key="${key}" placeholder="${esc(label)}"${reqAttr}>`;
   }
@@ -551,7 +568,7 @@ function openSheet(){
     const full = (s[2]==='text' && s[0]!=='quantity');
     return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
   }).join('');
-  if (ACTIVE === 'todos' || ACTIVE === 'home'){
+  if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){
     repeatSel = 0;
     document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🔁 Repeats</span><div class="chiprow" id="repeatChips">` +
       [[0,'No'],[1,'Daily'],[2,'Every 2 days'],[3,'Every 3 days'],[7,'Weekly'],[30,'Monthly'],[90,'Quarterly']].map(x => `<button type="button" class="chip${x[0]===0?' on':''}" data-n="${x[0]}">${x[1]}</button>`).join('') +
@@ -569,6 +586,20 @@ function openSheet(){
       const n = parseInt(document.getElementById('repeatCustom').value, 10);
       if (n > 0 && n <= 366) setRep(n, null);
     });
+  }
+  if (ACTIVE === 'cars'){
+    carTypeSel = 'Service';
+    document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🚗 Type</span><div class="chiprow" id="carTypeChips">` +
+      [['Service','🛢} Service'],['Tires','🧞 Tires'],['Paperwork','📋 Paperwork'],['Repair','🔧 Repair']].map(x => `<button type="button" class="chip${x[0]==='Service'?' on':''}" data-t="${x[0]}">${x[1]}</button>`).join('') + `</div></div>`;
+    document.getElementById('carTypeChips').addEventListener('click', e => {
+      const b = e.target.closest('.chip'); if (!b) return;
+      carTypeSel = b.dataset.t;
+      document.querySelectorAll('#carTypeChips .chip').forEach(c => c.classList.toggle('on', c === b));
+    });
+    const known = [...new Set(CACHE.cars.map(r => (r.d.vehicle || '').trim()).filter(Boolean))];
+    if (known.length) document.getElementById('formGrid').innerHTML += `<datalist id="carNames">${known.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
+    const knownTasks = [...new Set(CACHE.cars.map(r => (r.d.task || '').trim()).filter(Boolean))];
+    if (knownTasks.length) document.getElementById('formGrid').innerHTML += `<datalist id="carTasks">${knownTasks.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
   }
   if (ACTIVE === 'home'){
     typeSel = 'Maintenance';
@@ -601,13 +632,14 @@ document.getElementById('addForm').addEventListener('submit', e => {
   const who = USER ? (USER.displayName || USER.email) : '';
   let targetColl = TABS[ACTIVE].coll;
   if (ACTIVE === 'groceries'){ vals.addedBy = who; vals.bought = false; }
-  if (ACTIVE === 'todos' || ACTIVE === 'home'){ vals.done = false; }
-  if ((ACTIVE === 'todos' || ACTIVE === 'home') && repeatSel > 0){
+  if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){ vals.done = false; }
+  if ((ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars') && repeatSel > 0){
     vals.repeatDays = repeatSel;
     if (!vals.dueDate) vals.dueDate = isoDay(new Date());
   }
-  if (ACTIVE === 'todos' || ACTIVE === 'plans' || ACTIVE === 'home'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
+  if (ACTIVE === 'todos' || ACTIVE === 'plans' || ACTIVE === 'home' || ACTIVE === 'cars'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
   if (ACTIVE === 'home'){ vals.type = typeSel; }
+  if (ACTIVE === 'cars'){ vals.type = carTypeSel; }
   if (ACTIVE === 'birthdays'){
     if (vals.date && vals.date.length >= 10) vals.date = vals.date.slice(5);  /* YYYY-MM-DD -> MM-DD */
     vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
@@ -935,6 +967,7 @@ function updateBell(){
   let n = 0;
   CACHE.todos.forEach(r => { if (!r.d.done){ const k = dueInDays(r.d.dueDate); if (k !== null && k <= 1) n++; } });
   CACHE.home.forEach(r => { if (!r.d.done){ const k = dueInDays(r.d.dueDate); if (k !== null && k <= 1) n++; } });
+  CACHE.cars.forEach(r => { if (!r.d.done){ const k = dueInDays(r.d.dueDate); if (k !== null && k <= 1) n++; } });
   CACHE.plans.forEach(r => { const k = dueInDays(r.d.date); if (k !== null && k >= 0 && k <= 1) n++; });
   CACHE.birthdays.forEach(r => { const k = bdayInDays(r.d.date); if (k !== null && k <= 7) n++; });
   bellBdg.style.display = n ? '' : 'none';
@@ -963,6 +996,14 @@ function upcomingGroups(){
     if (k < 0) g.overdue.push(['🏠', label, r.d.dueDate]);
     else if (k === 0) g.today.push(['🏠', label, '']);
     else if (k === 1) g.tomorrow.push(['🏠', label, '']);
+  });
+  CACHE.cars.forEach(r => {
+    if (r.d.done) return;
+    const k = dueInDays(r.d.dueDate); if (k === null) return;
+    const label = r.d.task + (r.d.vehicle ? ' [' + r.d.vehicle + ']' : '') + (r.d.assignedTo ? ' \u2014 ' + r.d.assignedTo : '');
+    if (k < 0) g.overdue.push(['🚗', label, r.d.dueDate]);
+    else if (k === 0) g.today.push(['🚗', label, '']);
+    else if (k === 1) g.tomorrow.push(['🚗', label, '']);
   });
   const bd = [];
   CACHE.birthdays.forEach(r => {
@@ -1241,6 +1282,7 @@ const HUB_LISTS = [
   { key:'gifts', emoji:'🎁', title:'Gifts', sub:'Gift ideas, some just for you' },
   { key:'birthdays', emoji:'🎂', title:'Birthdays', sub:'Never miss a family birthday' },
   { key:'home', emoji:'🏠', title:'Home', sub:'Maintenance, repairs & replacements' },
+  { key:'cars', emoji:'🚗', title:'Car', sub:'Service, tires & paperwork per vehicle' },
 ];
 const isHubKey = k => HUB_LISTS.some(h => h.key === k);
 let PREV_TAB = 'todos';
@@ -1261,7 +1303,7 @@ function openHubList(key){
   ACTIVE = key;
   closeHub();
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('active', x.id === 'hubBtn'));
-  document.getElementById('aiFab').style.display = (ACTIVE === 'birthdays' || ACTIVE === 'home') ? 'none' : '';
+  document.getElementById('aiFab').style.display = (ACTIVE === 'birthdays' || ACTIVE === 'home' || ACTIVE === 'cars') ? 'none' : '';
   window.scrollTo(0,0);
   render();
 }
