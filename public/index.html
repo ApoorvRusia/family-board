@@ -83,6 +83,8 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
 .notebar .nt{flex:1;font-size:16.5px;font-weight:700;line-height:1.5;white-space:pre-line}
 .notebar .nmeta{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
 .noteedit{border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:13px;padding:6px 10px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.notedate{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:13px;color:var(--muted);font-weight:700}
+.notedate input{font-family:inherit;font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
 .noteempty{border:1.5px dashed var(--line);border-radius:16px;padding:10px 14px;color:var(--muted);font-size:13.5px;text-align:center;cursor:pointer;background:transparent;width:100%;font-family:inherit}
 .notebody textarea{width:100%;box-sizing:border-box;font-size:16px;padding:13px;border:1.5px solid #e0dac4;border-radius:13px;font-family:inherit;color:var(--ink);resize:vertical}
 .notebody textarea:focus{outline:none;border-color:var(--teal)}
@@ -244,6 +246,7 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
   <div class="sheet-head"><h3>📌 Family note</h3><button id="sheetNClose" class="sheetclose" aria-label="Close">✕</button></div>
   <div class="notebody">
     <textarea id="noteText" rows="4" placeholder="e.g. Mom's visiting Friday — tidy the guest room"></textarea>
+    <label class="notedate"><span>Show until (optional)</span><input type="date" id="noteUntil"></label>
     <div class="notebtnrow">
       <button class="addbtn" id="noteSave" type="button">Save</button>
       <button class="addbtn no" id="noteClear" type="button">Clear</button>
@@ -680,11 +683,14 @@ const relTime = ts => {
 function renderNote(){
   noteBannerEl.style.display = '';
   const txt = NOTE && String(NOTE.text || '').trim();
-  if (txt){
+  const exp = NOTE && NOTE.expiresAt;
+  const expired = exp && exp < isoDay(new Date());
+  if (txt && !expired){
     const bits = [];
     if (NOTE.updatedBy) bits.push('by ' + NOTE.updatedBy);
     const rel = relTime(NOTE.updatedAt);
     if (rel) bits.push(rel);
+    if (exp) bits.push('until ' + fmtDay(exp));
     noteBannerEl.innerHTML = `<div class="notebar"><div class="nt">📌 ${esc(txt)}${bits.length ? `<span class="nmeta">${esc(bits.join(' · '))}</span>` : ''}</div><button class="noteedit" id="noteEdit" aria-label="Edit note">✏️</button></div>`;
     document.getElementById('noteEdit').addEventListener('click', openNoteSheet);
   } else {
@@ -695,6 +701,7 @@ function renderNote(){
 const overlayN = document.getElementById('overlayN');
 const openNoteSheet = () => {
   document.getElementById('noteText').value = (NOTE && NOTE.text) ? NOTE.text : '';
+  document.getElementById('noteUntil').value = (NOTE && NOTE.expiresAt) ? NOTE.expiresAt : '';
   overlayN.classList.add('open');
 };
 const closeNoteSheet = () => overlayN.classList.remove('open');
@@ -707,6 +714,7 @@ document.getElementById('noteSave').addEventListener('click', async () => {
   try {
     await setDoc(doc(db, 'meta', 'pinnedNote'), {
       text: document.getElementById('noteText').value.trim(),
+      expiresAt: document.getElementById('noteUntil').value || '',
       updatedBy: noteWho(),
       updatedAt: serverTimestamp()
     });
@@ -717,7 +725,7 @@ document.getElementById('noteSave').addEventListener('click', async () => {
 document.getElementById('noteClear').addEventListener('click', async () => {
   if (!confirm('Clear the pinned note?')) return;
   try {
-    await setDoc(doc(db, 'meta', 'pinnedNote'), { text: '', updatedBy: noteWho(), updatedAt: serverTimestamp() });
+    await setDoc(doc(db, 'meta', 'pinnedNote'), { text: '', expiresAt: '', updatedBy: noteWho(), updatedAt: serverTimestamp() });
     closeNoteSheet();
   } catch(e){ alert('Could not save: ' + e.message); }
 });
