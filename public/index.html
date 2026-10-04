@@ -86,6 +86,14 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
 .notedate{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:13px;color:var(--muted);font-weight:700}
 .notedate input{font-family:inherit;font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
 .noteempty{border:1.5px dashed var(--line);border-radius:16px;padding:10px 14px;color:var(--muted);font-size:13.5px;text-align:center;cursor:pointer;background:transparent;width:100%;font-family:inherit}
+.hublist{display:flex;flex-direction:column;gap:8px;padding:6px 0 10px}
+.hubrow{display:flex;align-items:center;gap:12px;width:100%;border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:12px 14px;cursor:pointer;font-family:inherit;text-align:left}
+.hubrow .hico{font-size:26px}
+.hubrow .ht{flex:1;font-weight:700;font-size:15px}
+.hubrow .ht small{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+.hubrow .hc{font-size:12px;font-weight:700;color:var(--teal-dark);background:#e2f2ee;border-radius:20px;padding:4px 10px}
+.hubrow .hchev{color:var(--muted);font-weight:700;font-size:18px}
+.backbtn{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:8px 14px;font-size:13.5px;font-weight:700;color:var(--teal-dark);cursor:pointer;font-family:inherit;margin-bottom:10px}
 .notebody textarea{width:100%;box-sizing:border-box;font-size:16px;padding:13px;border:1.5px solid #e0dac4;border-radius:13px;font-family:inherit;color:var(--ink);resize:vertical}
 .notebody textarea:focus{outline:none;border-color:var(--teal)}
 .notebtnrow{display:flex;gap:10px}
@@ -253,13 +261,18 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
     </div>
   </div>
 </div></div>
+<div id="overlayH" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3>📋 More lists</h3><button id="sheetHClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div id="hubList" class="hublist"></div>
+</div></div>
 <div id="gate"><div class="gatecard" id="gateCard"></div></div>
 <nav id="tabs">
   <button data-tab="groceries" class="active"><span class="ico">🛒</span><span>Groceries</span></button>
   <button data-tab="todos"><span class="ico">✅</span><span>To-Dos</span></button>
   <button data-tab="plans"><span class="ico">📅</span><span>Plans</span></button>
   <button data-tab="gifts"><span class="ico">🎁</span><span>Gifts</span></button>
-  <button data-tab="birthdays"><span class="ico">🎂</span><span>Birthdays</span></button>
+  <button data-hub="1" id="hubBtn"><span class="ico">⋯</span><span>More</span></button>
 </nav>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="importmap">
@@ -426,9 +439,12 @@ function render(){
   }
   const open = rows.filter(r => !(tab.toggle && r.d[tab.toggle])).length;
   let html = `<div class="secthead"><h2>${tab.title}</h2><span class="count">${open} ${tab.countLbl}</span></div>`;
+  if (isHubKey(ACTIVE)) html = `<button class="backbtn" id="hubBack">← Back</button>` + html;
   if (!rows.length) html += `<div class="empty"><span class="big">${tab.emoji}</span>Nothing here yet.<br>Tap ＋ to add the first one.</div>`;
   rows.forEach(r => { html += card(ACTIVE, r.id, r.d, r.coll); });
   contentEl.innerHTML = html;
+  const hb = document.getElementById('hubBack');
+  if (hb) hb.addEventListener('click', goHubBack);
   contentEl.querySelectorAll('.check').forEach(cb => cb.addEventListener('change', () => {
     const rep = parseInt(cb.dataset.repeat || '0', 10);
     if (rep > 0 && cb.checked && tab.coll === 'todos'){
@@ -1156,11 +1172,45 @@ document.getElementById('aiAddAll').addEventListener('click', async () => {
 })();
 
 /* ---------- nav ---------- */
+const HUB_LISTS = [
+  { key:'birthdays', emoji:'🎂', title:'Birthdays', sub:'Never miss a family birthday' },
+];
+const isHubKey = k => HUB_LISTS.some(h => h.key === k);
+let PREV_TAB = 'todos';
+const overlayH = document.getElementById('overlayH');
+const openHub = () => {
+  document.getElementById('hubList').innerHTML = HUB_LISTS.map(h => {
+    const n = (CACHE[h.key] || []).length;
+    return `<button class="hubrow" data-hubkey="${h.key}"><span class="hico">${h.emoji}</span><span class="ht">${esc(h.title)}<small>${esc(h.sub)}</small></span>${n ? `<span class="hc">${n}</span>` : ''}<span class="hchev">›</span></button>`;
+  }).join('');
+  overlayH.classList.add('open');
+  document.querySelectorAll('#hubList .hubrow').forEach(b => b.addEventListener('click', () => openHubList(b.dataset.hubkey)));
+};
+const closeHub = () => overlayH.classList.remove('open');
+document.getElementById('sheetHClose').addEventListener('click', closeHub);
+overlayH.addEventListener('click', e => { if (e.target === overlayH) closeHub(); });
+function openHubList(key){
+  PREV_TAB = isHubKey(ACTIVE) ? PREV_TAB : ACTIVE;
+  ACTIVE = key;
+  closeHub();
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('active', x.id === 'hubBtn'));
+  document.getElementById('aiFab').style.display = ACTIVE === 'birthdays' ? 'none' : '';
+  window.scrollTo(0,0);
+  render();
+}
+function goHubBack(){
+  ACTIVE = PREV_TAB;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('active', x.dataset.tab === ACTIVE));
+  document.getElementById('aiFab').style.display = '';
+  render();
+}
 document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.hub){ openHub(); return; }
   document.querySelectorAll('#tabs button').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   ACTIVE = b.dataset.tab;
-  document.getElementById('aiFab').style.display = ACTIVE === 'birthdays' ? 'none' : '';
+  PREV_TAB = ACTIVE;
+  document.getElementById('aiFab').style.display = '';
   window.scrollTo(0,0);
   render();
 }));
