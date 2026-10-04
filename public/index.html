@@ -62,6 +62,7 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
 .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
 .chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
 .replab{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700}
+.lastdone{font-size:12px;color:var(--muted)}
 .del{background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;font-size:12.5px;padding:7px 13px;cursor:pointer;font-family:inherit}
 .empty{text-align:center;color:var(--muted);padding:50px 22px;font-size:15px;background:#fff;border-radius:18px;border:1.5px dashed var(--line)}
 .empty .big{font-size:40px;display:block;margin-bottom:10px}
@@ -295,6 +296,8 @@ const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')
 const fmtDay = iso => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }); };
 const repeatLabel = n => n === 1 ? '🔁 daily' : n === 7 ? '🔁 weekly' : `🔁 every ${n} days`;
 let repeatSel = 0;
+const daysAgo = iso => { if (!iso) return null; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return null; const t = new Date(); t.setHours(0,0,0,0); return Math.round((t - d) / 86400000); };
+const lastDoneLine = (who, iso) => { const n = daysAgo(iso); const when = n == null ? '' : n <= 0 ? 'today' : n + 'd ago'; return `<div class="lastdone">✓ ${esc(who)}${when ? ' · ' + when : ''}</div>`; };
 /* ---------- rendering ---------- */
 const pill = (txt, cls) => txt ? `<span class="pill ${cls}">${esc(txt)}</span>` : '';
 
@@ -330,7 +333,7 @@ function card(tab, id, v, coll){
   } else if (tab === 'todos'){
     title = esc(v.task);
     row = dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber') + (v.repeatDays ? pill(repeatLabel(v.repeatDays), 'purple') : '');
-    meta = v.notes ? `<div>${esc(v.notes)}</div>` : '';
+    meta = (v.repeatDays && v.lastDoneBy ? lastDoneLine(v.lastDoneBy, v.lastDoneAt) : '') + (v.notes ? `<div>${esc(v.notes)}</div>` : '');
     lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} data-repeat="${v.repeatDays || ''}" aria-label="done">`;
   } else if (tab === 'plans'){
     title = esc(v.event);
@@ -364,7 +367,8 @@ function render(){
     if (rep > 0 && cb.checked && tab.coll === 'todos'){
       const nd = new Date(); nd.setDate(nd.getDate() + rep);
       const iso = isoDay(nd);
-      updateDoc(doc(db, tab.coll, cb.dataset.id), { dueDate: iso, done: false })
+      const who = USER ? (USER.displayName || USER.email) : '';
+      updateDoc(doc(db, tab.coll, cb.dataset.id), { dueDate: iso, done: false, lastDoneBy: who, lastDoneAt: isoDay(new Date()) })
         .then(() => showToast(`\u2705 Done! Next: ${fmtDay(iso)}`))
         .catch(e => { render(); alert('Could not save: ' + e.message); });
       return;
