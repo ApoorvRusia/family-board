@@ -58,6 +58,10 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
 .dateblock .d{font-size:24px;font-weight:800;line-height:1.1}
 .dateblock.plain{background:linear-gradient(160deg,#9aa39a,#6f7a6f);box-shadow:none}
 .delrow{margin-top:10px}
+.chiprow{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+.chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.replab{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700}
 .del{background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;font-size:12.5px;padding:7px 13px;cursor:pointer;font-family:inherit}
 .empty{text-align:center;color:var(--muted);padding:50px 22px;font-size:15px;background:#fff;border-radius:18px;border:1.5px dashed var(--line)}
 .empty .big{font-size:40px;display:block;margin-bottom:10px}
@@ -287,6 +291,10 @@ document.getElementById('today').textContent =
   new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ts = d => (d.createdAt && d.createdAt.toMillis) ? d.createdAt.toMillis() : 0;
+const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDay = iso => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }); };
+const repeatLabel = n => n === 1 ? '🔁 daily' : n === 7 ? '🔁 weekly' : `🔁 every ${n} days`;
+let repeatSel = 0;
 /* ---------- rendering ---------- */
 const pill = (txt, cls) => txt ? `<span class="pill ${cls}">${esc(txt)}</span>` : '';
 
@@ -321,9 +329,9 @@ function card(tab, id, v, coll){
     lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="bought"${done?' checked':''} aria-label="bought">`;
   } else if (tab === 'todos'){
     title = esc(v.task);
-    row = dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber');
+    row = dueBadge(v.dueDate) + pill(v.assignedTo ? '👤 '+v.assignedTo : '', 'amber') + (v.repeatDays ? pill(repeatLabel(v.repeatDays), 'purple') : '');
     meta = v.notes ? `<div>${esc(v.notes)}</div>` : '';
-    lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} aria-label="done">`;
+    lead = `<input type="checkbox" class="check" data-id="${id}" data-tgl="done"${done?' checked':''} data-repeat="${v.repeatDays || ''}" aria-label="done">`;
   } else if (tab === 'plans'){
     title = esc(v.event);
     row = pill(v.whoIn ? '👪 '+v.whoIn : '', 'purple');
@@ -352,6 +360,15 @@ function render(){
   rows.forEach(r => { html += card(ACTIVE, r.id, r.d, r.coll); });
   contentEl.innerHTML = html;
   contentEl.querySelectorAll('.check').forEach(cb => cb.addEventListener('change', () => {
+    const rep = parseInt(cb.dataset.repeat || '0', 10);
+    if (rep > 0 && cb.checked && tab.coll === 'todos'){
+      const nd = new Date(); nd.setDate(nd.getDate() + rep);
+      const iso = isoDay(nd);
+      updateDoc(doc(db, tab.coll, cb.dataset.id), { dueDate: iso, done: false })
+        .then(() => showToast(`\u2705 Done! Next: ${fmtDay(iso)}`))
+        .catch(e => { render(); alert('Could not save: ' + e.message); });
+      return;
+    }
     updateDoc(doc(db, tab.coll, cb.dataset.id), { [cb.dataset.tgl]: cb.checked }).catch(e => { render(); alert('Could not save: ' + e.message); });
   }));
   contentEl.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
@@ -408,6 +425,16 @@ function openSheet(){
     const full = (s[2]==='text' && s[0]!=='quantity');
     return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
   }).join('');
+  if (ACTIVE === 'todos'){
+    repeatSel = 0;
+    document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🔁 Repeats</span><div class="chiprow" id="repeatChips">` +
+      [[0,'No'],[1,'Daily'],[2,'Every 2 days'],[3,'Every 3 days'],[7,'Weekly']].map(x => `<button type="button" class="chip${x[0]===0?' on':''}" data-n="${x[0]}">${x[1]}</button>`).join('') + `</div></div>`;
+    document.getElementById('repeatChips').addEventListener('click', e => {
+      const b = e.target.closest('.chip'); if (!b) return;
+      repeatSel = parseInt(b.dataset.n, 10);
+      document.querySelectorAll('#repeatChips .chip').forEach(c => c.classList.toggle('on', c === b));
+    });
+  }
   if (ACTIVE === 'gifts'){
     document.getElementById('formGrid').innerHTML += `<label class="privrow"><input type="checkbox" id="privToggle"> 🔒 Only me — hidden from everyone else</label>`;
   }
@@ -430,6 +457,10 @@ document.getElementById('addForm').addEventListener('submit', e => {
   let targetColl = TABS[ACTIVE].coll;
   if (ACTIVE === 'groceries'){ vals.addedBy = who; vals.bought = false; }
   if (ACTIVE === 'todos'){ vals.done = false; }
+  if (ACTIVE === 'todos' && repeatSel > 0){
+    vals.repeatDays = repeatSel;
+    if (!vals.dueDate) vals.dueDate = isoDay(new Date());
+  }
   if (ACTIVE === 'todos' || ACTIVE === 'plans'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
   if (ACTIVE === 'gifts'){
     vals.addedBy = who;
@@ -847,7 +878,7 @@ function aiFields(){
   const m = MEMBER_NAMES.join(', ');
   return {
     groceries: `item (required), quantity, pickUpBy (one of: ${m}, or empty), notes`,
-    todos: `task (required), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), notes`,
+    todos: `task (required), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), repeatDays (repeat interval in days as a number — \u201cevery 3 days\u201d -> 3, \u201cdaily\u201d -> 1, \u201cweekly\u201d -> 7, or empty), notes`,
     plans: `event (required), date (YYYY-MM-DD or empty), whoIn, notes`,
     gifts: `idea (required), forWhom (one of: ${m}, or empty), occasion, budget, link (URL or empty), private (true if the user says only me / private / hide this / keep it secret, else false), notes`
   };
@@ -935,7 +966,9 @@ document.getElementById('aiAddAll').addEventListener('click', async () => {
       let targetColl = TABS[ACTIVE].coll;
       const s = v => String(v || '').trim();
       if (ACTIVE === 'groceries'){ vals.item = s(it.item); vals.quantity = s(it.quantity); vals.pickUpBy = s(it.pickUpBy); vals.notes = s(it.notes); vals.addedBy = who; vals.bought = false; }
-      else if (ACTIVE === 'todos'){ vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes); vals.done = false; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
+      else if (ACTIVE === 'todos'){ vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes); vals.done = false; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
+        const rp = parseInt(s(it.repeatDays), 10) || 0;
+        if (rp > 0){ vals.repeatDays = rp; if (!vals.dueDate) vals.dueDate = isoDay(new Date()); } }
       else if (ACTIVE === 'plans'){ vals.event = s(it.event); vals.date = s(it.date); vals.whoIn = s(it.whoIn); vals.notes = s(it.notes); vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
       else if (ACTIVE === 'gifts'){
         vals.idea = s(it.idea); vals.forWhom = s(it.forWhom); vals.occasion = s(it.occasion); vals.budget = s(it.budget); vals.link = s(it.link); vals.notes = s(it.notes); vals.addedBy = who;
