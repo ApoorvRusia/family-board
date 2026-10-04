@@ -78,6 +78,16 @@ main{max-width:640px;margin:0 auto;padding:16px 14px 24px}
 #settingsBtn .bdg{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
 #bellBtn{position:relative}
 #bellBtn .bdg{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
+#noteBanner{margin:10px 14px 0}
+.notebar{background:#fdf6dd;border:1.5px solid #eadfae;border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.notebar .nt{flex:1;font-size:14.5px;line-height:1.5;white-space:pre-line}
+.notebar .nmeta{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+.noteedit{border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:13px;padding:6px 10px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.noteempty{border:1.5px dashed var(--line);border-radius:16px;padding:10px 14px;color:var(--muted);font-size:13.5px;text-align:center;cursor:pointer;background:transparent;width:100%;font-family:inherit}
+.notebody textarea{width:100%;box-sizing:border-box;font-size:16px;padding:13px;border:1.5px solid #e0dac4;border-radius:13px;font-family:inherit;color:var(--ink);resize:vertical}
+.notebody textarea:focus{outline:none;border-color:var(--teal)}
+.notebtnrow{display:flex;gap:10px}
+.notebtnrow .addbtn{margin-top:12px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom));background:#2e2c25;color:#fff;padding:12px 18px;border-radius:14px;font-size:14px;z-index:60;display:none;max-width:88%;box-shadow:0 8px 22px rgba(0,0,0,.35);white-space:pre-line;text-align:center}
 .setbody h4{margin:18px 0 8px;font-size:15px}
 .setbody h4:first-child{margin-top:2px}
@@ -161,6 +171,7 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
     </div>
   </div>
 </header>
+<div id="noteBanner" style="display:none"></div>
 <main id="content"><p class="conn">Connecting…</p></main>
 <button id="fab" aria-label="Add">＋</button>
 <a id="askFab" href="#" aria-label="Ask your assistant">💬</a>
@@ -227,6 +238,17 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
   <div class="grab"></div>
   <div class="sheet-head"><h3>⏰ Coming up</h3><button id="sheetUClose" class="sheetclose" aria-label="Close">✕</button></div>
   <div class="setbody" id="upcomingList"></div>
+</div></div>
+<div id="overlayN" class="overlay"><div class="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head"><h3>📌 Family note</h3><button id="sheetNClose" class="sheetclose" aria-label="Close">✕</button></div>
+  <div class="notebody">
+    <textarea id="noteText" rows="4" placeholder="e.g. Mom's visiting Friday — tidy the guest room"></textarea>
+    <div class="notebtnrow">
+      <button class="addbtn" id="noteSave" type="button">Save</button>
+      <button class="addbtn no" id="noteClear" type="button">Clear</button>
+    </div>
+  </div>
 </div></div>
 <div id="gate"><div class="gatecard" id="gateCard"></div></div>
 <nav id="tabs">
@@ -395,6 +417,10 @@ function startRealtime(){
       err => { contentEl.innerHTML = `<p class="err">Could not connect.<br>${esc(err.message)}</p>`; }
     ));
   });
+  unsubs.push(onSnapshot(doc(db, 'meta', 'pinnedNote'),
+    snap => { NOTE = snap.exists() ? snap.data() : null; renderNote(); },
+    err => { noteBannerEl.style.display = 'none'; }
+  ));
   if (USER) {
     unsubs.push(onSnapshot(query(collection(db, 'privateGifts'), where('ownerUid', '==', USER.uid)),
       snap => {
@@ -633,6 +659,68 @@ const closeSettings = () => overlayS.classList.remove('open');
 settingsBtn.addEventListener('click', openSettings);
 document.getElementById('sheetSClose').addEventListener('click', closeSettings);
 overlayS.addEventListener('click', e => { if (e.target === overlayS) closeSettings(); });
+
+/* ---------- pinned family note ---------- */
+const noteBannerEl = document.getElementById('noteBanner');
+let NOTE = null;
+const relTime = ts => {
+  const ms = ts && ts.toMillis ? ts.toMillis() : 0;
+  if (!ms) return '';
+  const s = Math.max(1, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.round(h / 24);
+  if (d === 1) return 'yesterday';
+  if (d < 7) return d + 'd ago';
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+function renderNote(){
+  noteBannerEl.style.display = '';
+  const txt = NOTE && String(NOTE.text || '').trim();
+  if (txt){
+    const bits = [];
+    if (NOTE.updatedBy) bits.push('by ' + NOTE.updatedBy);
+    const rel = relTime(NOTE.updatedAt);
+    if (rel) bits.push(rel);
+    noteBannerEl.innerHTML = `<div class="notebar"><div class="nt">📌 ${esc(txt)}${bits.length ? `<span class="nmeta">${esc(bits.join(' · '))}</span>` : ''}</div><button class="noteedit" id="noteEdit" aria-label="Edit note">✏️</button></div>`;
+    document.getElementById('noteEdit').addEventListener('click', openNoteSheet);
+  } else {
+    noteBannerEl.innerHTML = `<button class="noteempty" id="noteAdd">📌 Pin a family note</button>`;
+    document.getElementById('noteAdd').addEventListener('click', openNoteSheet);
+  }
+}
+const overlayN = document.getElementById('overlayN');
+const openNoteSheet = () => {
+  document.getElementById('noteText').value = (NOTE && NOTE.text) ? NOTE.text : '';
+  overlayN.classList.add('open');
+};
+const closeNoteSheet = () => overlayN.classList.remove('open');
+document.getElementById('sheetNClose').addEventListener('click', closeNoteSheet);
+overlayN.addEventListener('click', e => { if (e.target === overlayN) closeNoteSheet(); });
+const noteWho = () => USER ? (USER.displayName || USER.email) : '';
+document.getElementById('noteSave').addEventListener('click', async () => {
+  const btn = document.getElementById('noteSave');
+  btn.disabled = true;
+  try {
+    await setDoc(doc(db, 'meta', 'pinnedNote'), {
+      text: document.getElementById('noteText').value.trim(),
+      updatedBy: noteWho(),
+      updatedAt: serverTimestamp()
+    });
+    closeNoteSheet();
+  } catch(e){ alert('Could not save: ' + e.message); }
+  btn.disabled = false;
+});
+document.getElementById('noteClear').addEventListener('click', async () => {
+  if (!confirm('Clear the pinned note?')) return;
+  try {
+    await setDoc(doc(db, 'meta', 'pinnedNote'), { text: '', updatedBy: noteWho(), updatedAt: serverTimestamp() });
+    closeNoteSheet();
+  } catch(e){ alert('Could not save: ' + e.message); }
+});
 
 function makeQr(){
   const el = document.getElementById('qr');
