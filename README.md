@@ -13,6 +13,8 @@ A shared, mobile-first family coordination board — groceries, to-dos, plans, a
 - **🔔 Due-date notifications** — in-app 🔔 bell with a "Coming up" sheet (overdue / due today / due tomorrow), plus push digests: a morning rundown of what's due today and an evening heads-up for tomorrow. Only sent when there's something due
 - **🔁 Recurring to-dos** — set a to-do to repeat every N days (Daily / 2 / 3 / Weekly); checking it off rolls the due date forward so it never goes stale. Anyone in the house can do it — whoever checks it off advances the schedule
 - **🙋 Claim a chore** — unassigned to-dos show an "I'll do it" button; tapping it assigns the chore to you (↩ Unclaim releases it). Claimed chores route to you in the push digests
+- **🎂 Birthdays** — a Birthdays list under ⋯ More (name + date, sorted by next upcoming); the 🔔 bell lists birthdays in the next 7 days, and the morning push digest reminds you on the day and a week out
+- **📌 Pinned family note** — one shared banner under the header, visible on every tab, for household announcements ("Mom's visiting Friday"). Anyone approved can edit it; updates appear live with who wrote it and when
 - **Per-user assistant links** — each member can link their own AI assistant behind the 💬 button
 
 ## Tech
