@@ -273,7 +273,6 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
   <button data-tab="groceries" class="active"><span class="ico">🛒</span><span>Groceries</span></button>
   <button data-tab="todos"><span class="ico">✅</span><span>To-Dos</span></button>
   <button data-tab="plans"><span class="ico">📅</span><span>Plans</span></button>
-  <button data-tab="gifts"><span class="ico">🎁</span><span>Gifts</span></button>
   <button data-hub="1" id="hubBtn"><span class="ico">⋯</span><span>More</span></button>
 </nav>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1193,6 +1192,7 @@ document.getElementById('aiAddAll').addEventListener('click', async () => {
 
 /* ---------- nav ---------- */
 const HUB_LISTS = [
+  { key:'gifts', emoji:'🎁', title:'Gifts', sub:'Gift ideas, some just for you' },
   { key:'birthdays', emoji:'🎂', title:'Birthdays', sub:'Never miss a family birthday' },
 ];
 const isHubKey = k => HUB_LISTS.some(h => h.key === k);
