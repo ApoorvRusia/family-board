@@ -8,7 +8,7 @@ A shared, mobile-first family coordination board — groceries, to-dos, plans, a
 - **Google sign-in** — "Added by" attribution comes straight from each person's Google profile
 - **Approval-gate membership** — new people sign in, tap *Request access*, and the board owner approves them from ⚙️ Settings. Pending requests show a badge count
 - **Invite kit** — copyable board link, native phone share sheet, and QR code, all inside Settings
-- **✨ AI add** — dictate or type ("milk and eggs, fix the bulb in Ruhaan's room Friday"), Gemini parses it into the right fields, you preview and remove items, then add. Supports relative dates and private gifts
+- **✨ AI add** — dictate or type ("milk and eggs, fix the bulb in Ruhaan's room Friday"), Gemini parses it into the right fields, you preview and remove items, then add. Supports relative dates and private gifts; works on every list including the More hub
 - **🔒 Private gifts** — gift ideas only you can see, enforced by Firestore rules (`ownerUid`-gated `privateGifts` collection)
 - **🔔 Due-date notifications** — in-app 🔔 bell with a "Coming up" sheet (overdue / due today / due tomorrow), plus push digests: a morning rundown of what's due today and an evening heads-up for tomorrow. Only sent when there's something due
 - **🔁 Recurring to-dos** — set a to-do to repeat every N days (Daily / 2 / 3 / Weekly); checking it off rolls the due date forward so it never goes stale. Anyone in the house can do it — whoever checks it off advances the schedule, and the card shows who did it last ("✓ Divya · 3d ago")

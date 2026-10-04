@@ -1150,28 +1150,34 @@ document.getElementById('assistSave').addEventListener('click', async () => {
 });
 
 /* ---------- in-app AI add (✨) ---------- */
-const AI_TITLE = { groceries:'item', todos:'task', plans:'event', gifts:'idea' };
+const AI_TITLE = { groceries:'item', todos:'task', plans:'event', gifts:'idea', birthdays:'name', home:'task', cars:'task' };
 function aiFields(){
   const m = MEMBER_NAMES.join(', ');
   return {
     groceries: `item (required), quantity, pickUpBy (one of: ${m}, or empty), notes`,
     todos: `task (required), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), repeatDays (repeat interval in days as a number — \u201cevery 3 days\u201d -> 3, \u201cdaily\u201d -> 1, \u201cweekly\u201d -> 7, or empty), notes`,
     plans: `event (required), date (YYYY-MM-DD or empty), whoIn, notes`,
-    gifts: `idea (required), forWhom (one of: ${m}, or empty), occasion, budget, link (URL or empty), private (true if the user says only me / private / hide this / keep it secret, else false), notes`
+    gifts: `idea (required), forWhom (one of: ${m}, or empty), occasion, budget, link (URL or empty), private (true if the user says only me / private / hide this / keep it secret, else false), notes`,
+    birthdays: `name (required), date (birthday as MM-DD, e.g. "Oct 5" -> "10-05", "Dec 25" -> "12-25")`,
+    home: `task (required), type (one of: Repair, Maintenance, Replacement), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), repeatDays (repeat interval in days as a number — "every 3 months" -> 90, "monthly" -> 30, "weekly" -> 7, or empty), notes`,
+    cars: `task (required), type (one of: Service, Tires, Paperwork, Repair), vehicle (car name, or empty), odometer (odometer reading as digits only, or empty), assignedTo (one of: ${m}, or empty), dueDate (YYYY-MM-DD or empty), repeatDays (repeat interval in days as a number, or empty), notes`
   };
 }
-const AI_DESCR = { groceries:'grocery items', todos:'home to-do tasks', plans:'family plans or events', gifts:'gift ideas' };
+const AI_DESCR = { groceries:'grocery items', todos:'home to-do tasks', plans:'family plans or events', gifts:'gift ideas', birthdays:'birthdays', home:'home maintenance items', cars:'car service items' };
 const AI_HINTS = {
   groceries: 'Describe what to add, e.g. "milk 1 gallon, eggs a dozen, Divya grabs bread"',
   todos: 'Describe what to add, e.g. "fix the bulb in Ruhaan\u2019s room by Friday, Apoorv"',
   plans: 'Describe what to add, e.g. "dinner at Arpan\u2019s Saturday 7pm"',
-  gifts: 'Describe what to add, e.g. "espresso machine for Divya, birthday, around $200, keep it private"'
+  gifts: 'Describe what to add, e.g. "espresso machine for Divya, birthday, around $200, keep it private"',
+  birthdays: 'Describe what to add, e.g. "Mom\u2019s birthday Oct 5"',
+  home: 'Describe what to add, e.g. "replace HVAC filter every 3 months, maintenance"',
+  cars: 'Describe what to add, e.g. "oil change for the CR-V every 6 months at 45200 miles"'
 };
 let AI_ITEMS = [];
 const overlayC = document.getElementById('overlayC');
 const aiErrEl = document.getElementById('aiErr');
 const openAi = () => {
-  document.getElementById('aiTitle').textContent = '✨ AI add to ' + TABS[ACTIVE].label;
+  document.getElementById('aiTitle').textContent = '✨ AI add to ' + TABS[ACTIVE].title;
   document.getElementById('aiHint').textContent = AI_HINTS[ACTIVE];
   document.getElementById('aiText').value = '';
   AI_ITEMS = []; aiRenderPreview(); aiErrEl.textContent = '';
@@ -1251,6 +1257,26 @@ document.getElementById('aiAddAll').addEventListener('click', async () => {
         vals.idea = s(it.idea); vals.forWhom = s(it.forWhom); vals.occasion = s(it.occasion); vals.budget = s(it.budget); vals.link = s(it.link); vals.notes = s(it.notes); vals.addedBy = who;
         if (it.private && USER){ vals.ownerUid = USER.uid; vals.ownerEmail = USER.email || ''; vals.ownerName = who; targetColl = 'privateGifts'; }
       }
+      else if (ACTIVE === 'birthdays'){
+        vals.name = s(it.name);
+        let bd = s(it.date); if (bd.length >= 10) bd = bd.slice(5);
+        vals.date = bd; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
+      }
+      else if (ACTIVE === 'home'){
+        const ht = s(it.type); vals.type = ['Repair','Maintenance','Replacement'].includes(ht) ? ht : 'Maintenance';
+        vals.task = s(it.task); vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes);
+        vals.done = false; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
+        const rp = parseInt(s(it.repeatDays), 10) || 0;
+        if (rp > 0){ vals.repeatDays = rp; if (!vals.dueDate) vals.dueDate = isoDay(new Date()); }
+      }
+      else if (ACTIVE === 'cars'){
+        const ct = s(it.type); vals.type = ['Service','Tires','Paperwork','Repair'].includes(ct) ? ct : 'Service';
+        vals.task = s(it.task); vals.vehicle = s(it.vehicle); vals.odometer = s(it.odometer).replace(/[^0-9]/g, '');
+        vals.assignedTo = s(it.assignedTo); vals.dueDate = s(it.dueDate); vals.notes = s(it.notes);
+        vals.done = false; vals.createdBy = who; vals.createdByUid = USER ? USER.uid : '';
+        const rp = parseInt(s(it.repeatDays), 10) || 0;
+        if (rp > 0){ vals.repeatDays = rp; if (!vals.dueDate) vals.dueDate = isoDay(new Date()); }
+      }
       await addDoc(collection(db, targetColl), vals);
     }
     closeAi();
@@ -1303,7 +1329,7 @@ function openHubList(key){
   ACTIVE = key;
   closeHub();
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('active', x.id === 'hubBtn'));
-  document.getElementById('aiFab').style.display = (ACTIVE === 'birthdays' || ACTIVE === 'home' || ACTIVE === 'cars') ? 'none' : '';
+  document.getElementById('aiFab').style.display = '';
   window.scrollTo(0,0);
   render();
 }
