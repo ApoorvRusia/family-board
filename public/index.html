@@ -343,6 +343,7 @@ const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')
 const fmtDay = iso => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' }); };
 const repeatLabel = n => n === 1 ? '🔁 daily' : n === 7 ? '🔁 weekly' : n === 30 ? '🔁 monthly' : n === 90 ? '🔁 quarterly' : `🔁 every ${n} days`;
 let repeatSel = 0;
+let EDIT_ID = null;
 let typeSel = 'Maintenance';
 const typeEmoji = t => t === 'Repair' ? '🔧' : t === 'Replacement' ? '🔄' : '🗓';
 const typeCls = t => t === 'Repair' ? 'red' : t === 'Replacement' ? 'purple' : 'teal';
@@ -454,7 +455,7 @@ function card(tab, id, v, coll){
   return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
     `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
     `${row?`<div class="rowline">${row}</div>`:''}` +
-    `<div class="delrow"><button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
+    `<div class="delrow">${tab === 'groceries' ? `<button class="del" data-edit="${id}">Edit</button>` : ''}<button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
     `</div></div></div>`;
 }
 
@@ -507,6 +508,12 @@ function render(){
   contentEl.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
     if (!confirm('Delete this item?')) return;
     deleteDoc(doc(db, b.dataset.coll || tab.coll, b.dataset.del)).catch(e => alert('Could not delete: ' + e.message));
+  }));
+  contentEl.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+    const rec = CACHE.groceries.find(r => r.id === b.dataset.edit);
+    if (!rec) return;
+    EDIT_ID = b.dataset.edit;
+    openSheet(rec.d);
   }));
   updateBell();
 }
@@ -562,12 +569,19 @@ function fieldHtml(key, label, type, req){
   }
   return `<label class="f"><span>${esc(label)}${req?' *':''}</span>${inner}</label>`;
 }
-function openSheet(){
-  document.getElementById('sheetTitle').textContent = 'Add to ' + TABS[ACTIVE].title;
+function openSheet(editVals){
+  document.getElementById('sheetTitle').textContent = editVals ? 'Edit grocery item' : 'Add to ' + TABS[ACTIVE].title;
+  document.getElementById('addBtn').textContent = editVals ? 'Save' : 'Add';
   document.getElementById('formGrid').innerHTML = FORMS[ACTIVE].map(s => {
     const full = (s[2]==='text' && s[0]!=='quantity');
     return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
   }).join('');
+  if (editVals){
+    document.querySelectorAll('#formGrid [data-key]').forEach(el => {
+      const k = el.dataset.key;
+      if (editVals[k] != null) el.value = editVals[k];
+    });
+  }
   if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){
     repeatSel = 0;
     document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🔁 Repeats</span><div class="chiprow" id="repeatChips">` +
@@ -616,13 +630,13 @@ function openSheet(){
   }
   overlayEl.classList.add('open');
 }
-const closeSheet = () => overlayEl.classList.remove('open');
+const closeSheet = () => { EDIT_ID = null; overlayEl.classList.remove('open'); };
 document.getElementById('fab').addEventListener('click', openSheet);
 document.getElementById('sheetClose').addEventListener('click', closeSheet);
 overlayEl.addEventListener('click', e => { if (e.target === overlayEl) closeSheet(); });
 document.getElementById('addForm').addEventListener('submit', e => {
   e.preventDefault();
-  const vals = { createdAt: serverTimestamp() };
+  const vals = EDIT_ID ? {} : { createdAt: serverTimestamp() };
   let ok = true;
   e.target.querySelectorAll('[data-key]').forEach(el => {
     if (el.required && !el.value.trim()) ok = false;
@@ -631,7 +645,7 @@ document.getElementById('addForm').addEventListener('submit', e => {
   if (!ok) return;
   const who = USER ? (USER.displayName || USER.email) : '';
   let targetColl = TABS[ACTIVE].coll;
-  if (ACTIVE === 'groceries'){ vals.addedBy = who; vals.bought = false; }
+  if (ACTIVE === 'groceries' && !EDIT_ID){ vals.addedBy = who; vals.bought = false; }
   if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){ vals.done = false; }
   if ((ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars') && repeatSel > 0){
     vals.repeatDays = repeatSel;
@@ -655,10 +669,13 @@ document.getElementById('addForm').addEventListener('submit', e => {
     }
   }
   const btn = document.getElementById('addBtn');
-  btn.disabled = true; btn.textContent = 'Adding…';
-  addDoc(collection(db, targetColl), vals)
-    .then(() => { btn.disabled = false; btn.textContent = 'Add'; closeSheet(); })
-    .catch(err => { btn.disabled = false; btn.textContent = 'Add'; alert('Could not add: ' + err.message); });
+  btn.disabled = true; btn.textContent = EDIT_ID ? 'Saving…' : 'Adding…';
+  const write = EDIT_ID
+    ? updateDoc(doc(db, targetColl, EDIT_ID), vals)
+    : addDoc(collection(db, targetColl), vals);
+  write
+    .then(() => { const lbl = EDIT_ID ? 'Save' : 'Add'; EDIT_ID = null; btn.disabled = false; btn.textContent = lbl; closeSheet(); })
+    .catch(err => { btn.disabled = false; btn.textContent = EDIT_ID ? 'Save' : 'Add'; alert('Could not save: ' + err.message); });
 });
 
 /* ---------- Google sign-in + board membership ---------- */
