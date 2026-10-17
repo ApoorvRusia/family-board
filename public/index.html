@@ -576,12 +576,6 @@ function openSheet(editVals){
     const full = (s[2]==='text' && s[0]!=='quantity');
     return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
   }).join('');
-  if (editVals){
-    document.querySelectorAll('#formGrid [data-key]').forEach(el => {
-      const k = el.dataset.key;
-      if (editVals[k] != null) el.value = editVals[k];
-    });
-  }
   if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){
     repeatSel = 0;
     document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🔁 Repeats</span><div class="chiprow" id="repeatChips">` +
@@ -635,6 +629,12 @@ function openSheet(editVals){
   }
   if (ACTIVE === 'gifts'){
     document.getElementById('formGrid').innerHTML += `<label class="privrow"><input type="checkbox" id="privToggle"> 🔒 Only me — hidden from everyone else</label>`;
+  }
+  if (editVals){
+    document.querySelectorAll('#formGrid [data-key]').forEach(el => {
+      const k = el.dataset.key;
+      if (editVals[k] != null) el.value = editVals[k];
+    });
   }
   overlayEl.classList.add('open');
 }
