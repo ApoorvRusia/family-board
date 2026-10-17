@@ -288,7 +288,7 @@ nav#tabs button.active{color:var(--teal-dark);background:#e2f2ee}
 </script>
 <script type="module">
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp, arrayUnion, arrayRemove, deleteField } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
@@ -455,7 +455,7 @@ function card(tab, id, v, coll){
   return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
     `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
     `${row?`<div class="rowline">${row}</div>`:''}` +
-    `<div class="delrow">${tab === 'groceries' ? `<button class="del" data-edit="${id}">Edit</button>` : ''}<button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
+    `<div class="delrow">${(tab === 'groceries' || tab === 'todos') ? `<button class="del" data-edit="${id}">Edit</button>` : ''}<button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
     `</div></div></div>`;
 }
 
@@ -510,7 +510,7 @@ function render(){
     deleteDoc(doc(db, b.dataset.coll || tab.coll, b.dataset.del)).catch(e => alert('Could not delete: ' + e.message));
   }));
   contentEl.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
-    const rec = CACHE.groceries.find(r => r.id === b.dataset.edit);
+    const rec = (CACHE[ACTIVE] || []).find(r => r.id === b.dataset.edit);
     if (!rec) return;
     EDIT_ID = b.dataset.edit;
     openSheet(rec.d);
@@ -570,18 +570,12 @@ function fieldHtml(key, label, type, req){
   return `<label class="f"><span>${esc(label)}${req?' *':''}</span>${inner}</label>`;
 }
 function openSheet(editVals){
-  document.getElementById('sheetTitle').textContent = editVals ? 'Edit grocery item' : 'Add to ' + TABS[ACTIVE].title;
+  document.getElementById('sheetTitle').textContent = editVals ? ('Edit ' + (ACTIVE === 'todos' ? 'to-do' : 'grocery item')) : 'Add to ' + TABS[ACTIVE].title;
   document.getElementById('addBtn').textContent = editVals ? 'Save' : 'Add';
   document.getElementById('formGrid').innerHTML = FORMS[ACTIVE].map(s => {
     const full = (s[2]==='text' && s[0]!=='quantity');
     return `<div class="${full?'full':''}">${fieldHtml(s[0],s[1],s[2],s[3])}</div>`;
   }).join('');
-  if (editVals){
-    document.querySelectorAll('#formGrid [data-key]').forEach(el => {
-      const k = el.dataset.key;
-      if (editVals[k] != null) el.value = editVals[k];
-    });
-  }
   if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){
     repeatSel = 0;
     document.getElementById('formGrid').innerHTML += `<div class="full"><span class="replab">🔁 Repeats</span><div class="chiprow" id="repeatChips">` +
@@ -600,6 +594,14 @@ function openSheet(editVals){
       const n = parseInt(document.getElementById('repeatCustom').value, 10);
       if (n > 0 && n <= 366) setRep(n, null);
     });
+    if (editVals && editVals.repeatDays){
+      const n = parseInt(editVals.repeatDays, 10) || 0;
+      if (n > 0){
+        const btn = document.querySelector(`#repeatChips .chip[data-n="${n}"]`);
+        setRep(n, btn || null);
+        if (!btn) document.getElementById('repeatCustom').value = n;
+      }
+    }
   }
   if (ACTIVE === 'cars'){
     carTypeSel = 'Service';
@@ -628,6 +630,12 @@ function openSheet(editVals){
   if (ACTIVE === 'gifts'){
     document.getElementById('formGrid').innerHTML += `<label class="privrow"><input type="checkbox" id="privToggle"> 🔒 Only me — hidden from everyone else</label>`;
   }
+  if (editVals){
+    document.querySelectorAll('#formGrid [data-key]').forEach(el => {
+      const k = el.dataset.key;
+      if (editVals[k] != null) el.value = editVals[k];
+    });
+  }
   overlayEl.classList.add('open');
 }
 const closeSheet = () => { EDIT_ID = null; overlayEl.classList.remove('open'); };
@@ -646,12 +654,14 @@ document.getElementById('addForm').addEventListener('submit', e => {
   const who = USER ? (USER.displayName || USER.email) : '';
   let targetColl = TABS[ACTIVE].coll;
   if (ACTIVE === 'groceries' && !EDIT_ID){ vals.addedBy = who; vals.bought = false; }
-  if (ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars'){ vals.done = false; }
+  if ((ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars') && !EDIT_ID){ vals.done = false; }
   if ((ACTIVE === 'todos' || ACTIVE === 'home' || ACTIVE === 'cars') && repeatSel > 0){
     vals.repeatDays = repeatSel;
     if (!vals.dueDate) vals.dueDate = isoDay(new Date());
+  } else if (EDIT_ID && ACTIVE === 'todos' && repeatSel === 0){
+    vals.repeatDays = deleteField();
   }
-  if (ACTIVE === 'todos' || ACTIVE === 'plans' || ACTIVE === 'home' || ACTIVE === 'cars'){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
+  if ((ACTIVE === 'todos' || ACTIVE === 'plans' || ACTIVE === 'home' || ACTIVE === 'cars') && !EDIT_ID){ vals.createdBy = who; vals.createdByUid = USER ? USER.uid : ''; }
   if (ACTIVE === 'home'){ vals.type = typeSel; }
   if (ACTIVE === 'cars'){ vals.type = carTypeSel; }
   if (ACTIVE === 'birthdays'){
