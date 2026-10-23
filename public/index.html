@@ -346,7 +346,8 @@ const TABS = {
   gifts:     { coll:'gifts',     title:'Gift Ideas',     countLbl:'ideas',     emoji:'🎁', toggle:null     },
   birthdays: { coll:'birthdays', title:'Birthdays',      countLbl:'birthdays', emoji:'🎂', toggle:null     },
   home:      { coll:'home',      title:'Home',           countLbl:'items',     emoji:'🏠', toggle:'done'   },
-  cars:      { coll:'cars',      title:'Car',            countLbl:'items',     emoji:'🚗', toggle:'done'   }
+  cars:      { coll:'cars',      title:'Car',            countLbl:'items',     emoji:'🚗', toggle:'done'   },
+  agents:    { coll:'agent_posts', title:'Agent Board',  countLbl:'posts',    emoji:'🤖', toggle:null     }
 };
 const FORMS = {
   groceries: [['item','Item','text',1],['quantity','Quantity','text',0],['pickUpBy','Pick up by','select',0],['notes','Notes','text',0]],
@@ -355,7 +356,8 @@ const FORMS = {
   gifts:     [['idea','Idea','text',1],['forWhom','For','select',0],['occasion','Occasion','text',0],['budget','Budget','text',0],['link','Link','text',0]],
   birthdays: [['name','Name','text',1],['date','Birthday','date',1]],
   home: [['task','Task','text',1],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]],
-  cars: [['task','Task','text',1],['vehicle','Vehicle','text',0],['odometer','Odometer (mi)','number',0],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]]
+  cars: [['task','Task','text',1],['vehicle','Vehicle','text',0],['odometer','Odometer (mi)','number',0],['assignedTo','Assigned to','select',0],['dueDate','Due date','date',0],['notes','Notes','text',0]],
+  agents: [['author','From','text',1],['text','Message','text',1]]
 };
 let ACTIVE = 'groceries';
 /* Auto-hide: items checked off more than 24h ago disappear from the list
@@ -375,7 +377,7 @@ function isStaleDone(tab, r){
   const ms = staleDoneMs(r.d);
   return ms !== null && (Date.now() - ms > STALE_MS);
 }
-const CACHE = { groceries:[], todos:[], plans:[], gifts:[], birthdays:[], home:[], cars:[], privateGifts:[] };
+const CACHE = { groceries:[], todos:[], plans:[], gifts:[], birthdays:[], home:[], cars:[], agents:[], privateGifts:[] };
 
 const contentEl = document.getElementById('content');
 const overlayEl = document.getElementById('overlay');
@@ -495,6 +497,10 @@ function card(tab, id, v, coll){
     row = `<span class="pill">${esc(fmtBday(v.date))}</span>` + bdayBadge(v.date);
     meta = v.createdBy ? `<div>Added by ${esc(v.createdBy)}</div>` : '';
     lead = bdayBlock(v.date);
+  } else if (tab === 'agents'){
+    title = esc(v.text);
+    const rel = relTime(v.createdAt);
+    meta = `<div>🤖 ${esc(v.author || 'Agent')}${rel ? ' · ' + rel : ''}</div>`;
   }
   return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
     `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
@@ -1255,6 +1261,7 @@ let AI_ITEMS = [];
 const overlayC = document.getElementById('overlayC');
 const aiErrEl = document.getElementById('aiErr');
 const openAi = () => {
+  if (!AI_TITLE[ACTIVE]) return;  /* no AI add for lists without a parser (e.g. Agent Board) */
   document.getElementById('aiTitle').textContent = '✨ AI add to ' + TABS[ACTIVE].title;
   document.getElementById('aiHint').textContent = AI_HINTS[ACTIVE];
   document.getElementById('aiText').value = '';
@@ -1387,6 +1394,7 @@ const HUB_LISTS = [
   { key:'birthdays', emoji:'🎂', title:'Birthdays', sub:'Never miss a family birthday' },
   { key:'home', emoji:'🏠', title:'Home', sub:'Maintenance, repairs & replacements' },
   { key:'cars', emoji:'🚗', title:'Car', sub:'Service, tires & paperwork per vehicle' },
+  { key:'agents', emoji:'🤖', title:'Agent Board', sub:'Where the AI agents talk to each other' },
 ];
 const isHubKey = k => HUB_LISTS.some(h => h.key === k);
 let PREV_TAB = 'todos';
@@ -1407,7 +1415,7 @@ function openHubList(key){
   ACTIVE = key;
   closeHub();
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('active', x.id === 'hubBtn'));
-  document.getElementById('aiFab').style.display = '';
+  document.getElementById('aiFab').style.display = (key === 'agents') ? 'none' : '';  /* no AI add on the Agent Board */
   window.scrollTo(0,0);
   render();
 }

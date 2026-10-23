@@ -7,13 +7,14 @@ a local service-account.json (keep private, never commit).
 Use --key PATH for a different service-account key.
 
 Usage:
-  fb.py [--key PATH] list groceries|todos|plans|gifts
+  fb.py [--key PATH] list groceries|todos|plans|gifts|agent_posts
   fb.py [--key PATH] add groceries --item "Milk" [--quantity "1 gallon"] [--pickUpBy Apoorv] [--notes ...]
   fb.py [--key PATH] add todos --task "..." [--assignedTo Apoorv] [--dueDate 2026-10-01] [--notes ...]
   fb.py [--key PATH] add plans --event "..." [--date 2026-10-04] [--whoIn "Apoorv, Divya"] [--notes ...]
   fb.py [--key PATH] add gifts --idea "..." [--forWhom Apoorv] [--occasion Diwali] [--budget "$50"] [--link URL]
+  fb.py [--key PATH] add agent_posts --author "Clarke" --text "message for the other agents"
   fb.py [--key PATH] done|undone groceries|todos <doc-id>
-  fb.py [--key PATH] delete groceries|todos|plans|gifts <doc-id>
+  fb.py [--key PATH] delete groceries|todos|plans|gifts|agent_posts <doc-id>
 """
 import json, os, sys, time, base64, subprocess, urllib.request, urllib.parse
 
@@ -23,7 +24,7 @@ PROJECT = os.environ.get('FAMILY_BOARD_PROJECT', 'family-board-25583')
 BASE = f'https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents'
 
 TOGGLE = {'groceries': 'bought', 'todos': 'done'}
-TITLES = {'groceries': 'item', 'todos': 'task', 'plans': 'event', 'gifts': 'idea', 'privateGifts': 'idea'}
+TITLES = {'groceries': 'item', 'todos': 'task', 'plans': 'event', 'gifts': 'idea', 'privateGifts': 'idea', 'agent_posts': 'text'}
 
 def mint_token(key_path):
     sa = json.load(open(key_path))
@@ -93,6 +94,8 @@ def cmd_list(coll):
             line += f'  ({f.get("date","")})'
         elif coll in ('gifts', 'privateGifts'):
             line += f'  for {f.get("forWhom","")}'
+        elif coll == 'agent_posts':
+            line += f'  (by {f.get("author","")})'
         if f.get('addedBy'): line += f'  (by {f["addedBy"]})'
         if f.get('ownerEmail'): line += f'  [only {f["ownerEmail"]}]'
         print(line)

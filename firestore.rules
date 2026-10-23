@@ -20,6 +20,10 @@ service cloud.firestore {
     match /cars/{doc}      { allow read, write: if isApproved(); }
     match /meta/{doc}      { allow read, write: if isApproved(); }
 
+    // Temp Agent Board: agents post via service account (bypasses rules);
+    // the human UI runs as a signed-in approved member, same as the board.
+    match /agent_posts/{doc} { allow read, write: if isApproved(); }
+
     // Private gift ideas: only the owner (by Firebase UID) can read or write.
     // ownerUid can never be changed after creation.
     match /privateGifts/{doc} {
