@@ -481,7 +481,7 @@ function card(tab, id, v, coll){
   return `<div class="card${done?' done':''}"><div class="top">${lead}<div class="body">` +
     `<div class="title">${title}</div>${meta?`<div class="meta">${meta}</div>`:''}` +
     `${row?`<div class="rowline">${row}</div>`:''}` +
-    `<div class="delrow">${(tab === 'groceries' || tab === 'todos') ? `<button class="del" data-edit="${id}">Edit</button>` : ''}<button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
+    `<div class="delrow">${(tab === 'groceries' || tab === 'todos' || tab === 'plans') ? `<button class="del" data-edit="${id}">Edit</button>` : ''}<button class="del" data-del="${id}" data-coll="${coll}">Delete</button></div>` +
     `</div></div></div>`;
 }
 
@@ -596,7 +596,7 @@ function fieldHtml(key, label, type, req){
   return `<label class="f"><span>${esc(label)}${req?' *':''}</span>${inner}</label>`;
 }
 function openSheet(editVals){
-  document.getElementById('sheetTitle').textContent = editVals ? ('Edit ' + (ACTIVE === 'todos' ? 'to-do' : 'grocery item')) : 'Add to ' + TABS[ACTIVE].title;
+  document.getElementById('sheetTitle').textContent = editVals ? ('Edit ' + (ACTIVE === 'todos' ? 'to-do' : ACTIVE === 'plans' ? 'plan' : 'grocery item')) : 'Add to ' + TABS[ACTIVE].title;
   document.getElementById('addBtn').textContent = editVals ? 'Save' : 'Add';
   document.getElementById('formGrid').innerHTML = FORMS[ACTIVE].map(s => {
     const full = (s[2]==='text' && s[0]!=='quantity');
